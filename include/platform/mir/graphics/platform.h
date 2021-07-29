@@ -50,6 +50,20 @@ class DisplayConfigurationPolicy;
 class GraphicBufferAllocator;
 class GLConfig;
 
+class RendererInterfaceBase
+    {
+    public:
+    class Tag
+        {
+        public:
+        Tag() = default;
+        virtual ~Tag() = default;
+    };
+
+    virtual ~RendererInterfaceBase() = default;
+};
+
+
 /**
  * \defgroup platform_enablement Mir platform enablement
  *
@@ -73,6 +87,58 @@ public:
      */
     virtual UniqueModulePtr<GraphicBufferAllocator> create_buffer_allocator(
         Display const& output) = 0;
+
+    /**
+     * Attempt to acquire a platform-specific interface from this RenderingPlatform
+     *
+     * Any given platform is not guaranteed to implement any specific interface,
+     * and the set of supported interfaces may depend on the runtime environment.
+     *
+     * Since this may result in a runtime probe the call may be costly, and the
+     * result should be saved rather than re-acquiring an interface each time.
+     *
+     * \tparam Interface
+     * \return  On success: an Interface* with the same lifetime as the RenderingPlatform
+     *          it is acquired from.
+     *          On failure: nullptr
+     */
+    template<typename Interface>
+    auto acquire_interface() -> Interface*
+    {
+        static_assert(
+            std::is_convertible_v<Interface*, RendererInterfaceBase*>,
+            "Can only acquire a Renderer interface; Interface must implement RendererInterfaceBase");
+
+        if (auto const base_interface = maybe_create_interface(typename Interface::Tag{}))
+        {
+            if (auto const requested_interface = dynamic_cast<Interface*>(base_interface))
+            {
+                return requested_interface;
+            }
+            BOOST_THROW_EXCEPTION((
+                std::logic_error{
+                    "Implementation error! Platform returned object that does not support requested interface"}));
+        }
+        return nullptr;
+    }
+
+protected:
+    /**
+     * Acquire a specific hardware interface
+     *
+     * This should perform any runtime checks necessary to verify the requested interface is
+     * expected to work and return a pointer to an implementation of that interface.
+     *
+     * The returned pointer is required to be valid as long as this RenderingPlatform instance
+     * is live, but need not be the same object as this.
+     *
+     * \param type_tag  [in]    An instance of the Tag type for the requested interface.
+     *                          Implementations are expected to dynamic_cast<> this to
+     *                          discover the specific interface being requested.
+     * \return      A pointer to an implementation of the RenderInterfaceBase-derived
+     *              interface that corresponds to the most-derived type of tag_type.
+     */
+    virtual auto maybe_create_interface(RendererInterfaceBase::Tag const& type_tag) -> RendererInterfaceBase* = 0;
 };
 
 class DisplayPlatform

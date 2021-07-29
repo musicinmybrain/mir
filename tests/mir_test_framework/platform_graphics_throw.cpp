@@ -60,6 +60,15 @@ public:
         stub_display_platform = create_stub_display_platform(device, nullptr, nullptr, nullptr, nullptr);
     }
 
+protected:
+    auto maybe_create_interface(
+        mg::RendererInterfaceBase::Tag const& /*type_tag*/) -> mg::RendererInterfaceBase* override
+    {
+        return nullptr;
+    }
+
+public:
+
     mir::UniqueModulePtr<mir::graphics::GraphicBufferAllocator>
     create_buffer_allocator(mg::Display const& output) override
     {

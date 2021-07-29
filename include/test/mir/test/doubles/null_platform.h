@@ -46,6 +46,13 @@ public:
     {
         return nullptr;
     }
+
+protected:
+    auto maybe_create_interface(
+        graphics::RendererInterfaceBase::Tag const& /*type_tag*/) -> graphics::RendererInterfaceBase* override
+    {
+        return nullptr;
+    }
 };
 }
 }
