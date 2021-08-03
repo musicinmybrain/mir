@@ -55,7 +55,7 @@ mir::DefaultServerConfiguration::the_display_buffer_compositor_factory()
         [this]()
         {
             return wrap_display_buffer_compositor_factory(std::make_shared<mc::DefaultDisplayBufferCompositorFactory>(
-                the_renderer_factory(), the_compositor_report()));
+                the_renderer_factory(), the_rendering_platforms().front(), the_compositor_report()));
         });
 }
 
@@ -103,13 +103,13 @@ auto mir::DefaultServerConfiguration::the_screen_shooter() -> std::shared_ptr<co
             try
             {
                 auto render_target = std::make_unique<mrg::BasicBufferRenderTarget>(the_display()->create_gl_context());
-                auto renderer = the_renderer_factory()->create_renderer_for(*render_target);
+//                auto renderer = the_renderer_factory()->create_renderer_for(*render_target);
                 return std::make_shared<compositor::BasicScreenShooter>(
                     the_scene(),
                     the_clock(),
                     thread_pool_executor,
                     std::move(render_target),
-                    std::move(renderer));
+                    nullptr);    // TODO: WE'VE BROKEN THE SCREENSHOOTER FOR NOW
             }
             catch (...)
             {

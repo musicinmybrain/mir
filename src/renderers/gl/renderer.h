@@ -31,7 +31,7 @@
 
 namespace mir
 {
-namespace graphics { class DisplayBuffer; }
+namespace graphics { class DisplayBuffer; class GLRenderingProvider; }
 namespace renderer
 {
 namespace gl
@@ -54,8 +54,7 @@ private:
 class Renderer : public renderer::Renderer
 {
 public:
-    /// render_target is owned externally, and must be kept alive as long as this object.
-    Renderer(RenderTarget& render_target);
+    Renderer(graphics::DisplayBuffer& display_buffer, std::shared_ptr<graphics::GLRenderingProvider> gl_interface);
     virtual ~Renderer();
 
     // These are called with a valid GL context:
@@ -123,6 +122,7 @@ private:
     glm::mat4 screen_to_gl_coords;
     glm::mat4 display_transform;
     std::vector<mir::gl::Primitive> mutable primitives;
+    std::shared_ptr<graphics::GLRenderingProvider> const gl_interface;
 };
 
 }

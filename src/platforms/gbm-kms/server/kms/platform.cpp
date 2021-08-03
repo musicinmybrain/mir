@@ -61,7 +61,7 @@ mir::UniqueModulePtr<mg::GraphicBufferAllocator> mgg::RenderingPlatform::create_
 }
 
 auto mgg::RenderingPlatform::maybe_create_interface(
-    RendererInterfaceBase::Tag const& /*type_tag*/) -> RendererInterfaceBase*
+    RendererInterfaceBase::Tag const& /*type_tag*/) -> std::shared_ptr<RendererInterfaceBase>
 {
     return nullptr;
 }

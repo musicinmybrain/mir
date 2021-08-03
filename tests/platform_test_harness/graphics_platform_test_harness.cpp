@@ -391,6 +391,7 @@ auto bounce_within(
 [[maybe_unused]]
 void basic_software_buffer_drawing(
     mg::Display& display,
+    std::shared_ptr<mg::RenderingPlatform> platform,
     mg::GraphicBufferAllocator& allocator,
     mir::renderer::RendererFactory& factory)
 {
@@ -407,8 +408,9 @@ void basic_software_buffer_drawing(
     int min_height{std::numeric_limits<int>::max()}, min_width{std::numeric_limits<int>::max()};
     for_each_display_buffer(
         display,
-        [&renderers, &factory, &min_height, &min_width](mg::DisplayBuffer& db)
+        [platform, &renderers, &factory, &min_height, &min_width](mg::DisplayBuffer& db)
         {
+<<<<<<< HEAD
             auto const render_target = dynamic_cast<mir::renderer::gl::RenderTarget*>(db.native_display_buffer());
             if (!render_target)
             {
@@ -416,6 +418,9 @@ void basic_software_buffer_drawing(
             }
             renderers.push_back(factory.create_renderer_for(*render_target));
             renderers.back()->set_viewport(db.view_area());
+=======
+            renderers.push_back(factory.create_renderer_for(db, platform));
+>>>>>>> 905b866655 (REBASE: Add, and use, GLRenderingProvider)
             min_height = std::min(min_height, db.view_area().bottom().as_int());
             min_width = std::min(min_width, db.view_area().right().as_int());
         });

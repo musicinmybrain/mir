@@ -1,5 +1,5 @@
 /*
- * Copyright © 2012 Canonical Ltd.
+ * Copyright © 2021 Canonical Ltd.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 or 3,
@@ -12,30 +12,24 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authored by: Christopher James Halse Rogers <christopher.halse.rogers@canonical.com>
  */
 
-#ifndef MIR_RENDERER_GL_RENDERER_FACTORY_H_
-#define MIR_RENDERER_GL_RENDERER_FACTORY_H_
+#ifndef MIR_TEST_DOUBLES_MOCK_GL_RENDERING_PROVIDER_H_
+#define MIR_TEST_DOUBLES_MOCK_GL_RENDERING_PROVIDER_H_
 
-#include "mir/renderer/renderer_factory.h"
+#include <gmock/gmock.h>
 
-namespace mir
-{
-namespace renderer
-{
-namespace gl
-{
+#include "mir/graphics/platform.h"
 
-class RendererFactory : public renderer::RendererFactory
+namespace mir::test::doubles
+{
+class MockGlRenderingPlatform : public graphics::GLRenderingProvider
 {
 public:
-    auto create_renderer_for(
-        graphics::DisplayBuffer& display_buffer,
-        std::shared_ptr<graphics::RenderingPlatform> platform) -> std::unique_ptr<Renderer> override;
+    MOCK_METHOD(shared_ptr<graphics::gl::Texture>, as_texture, (std::shared_ptr<graphics::Buffer>), (override))
 };
-
-}
-}
 }
 
-#endif
+#endif //MIR_TEST_DOUBLES_MOCK_GL_RENDERING_PROVIDER_H_

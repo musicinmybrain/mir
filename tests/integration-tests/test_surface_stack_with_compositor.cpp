@@ -32,6 +32,7 @@
 #include "mir/test/doubles/null_display_sync_group.h"
 #include "mir/test/doubles/mock_event_sink.h"
 #include "mir/test/doubles/stub_buffer_allocator.h"
+#include "mir_test_framework/stub_server_platform_factory.h"
 
 #include <condition_variable>
 #include <mutex>
@@ -41,6 +42,7 @@
 namespace ms = mir::scene;
 namespace mt = mir::test;
 namespace mtd = mir::test::doubles;
+namespace mtf = mir_test_framework;
 namespace mr = mir::report;
 namespace mc = mir::compositor;
 namespace mg = mir::graphics;
@@ -55,8 +57,9 @@ namespace
 class StubRendererFactory : public mir::renderer::RendererFactory
 {
 public:
-    std::unique_ptr<mir::renderer::Renderer>
-        create_renderer_for(mir::renderer::gl::RenderTarget&) override
+    auto create_renderer_for(
+        mg::DisplayBuffer&,
+        std::shared_ptr<mg::RenderingPlatform> /*platform*/) -> std::unique_ptr<mir::renderer::Renderer> override
     {
         return std::unique_ptr<mtd::StubRenderer>(new mtd::StubRenderer);
     }
@@ -158,6 +161,7 @@ struct SurfaceStackCompositor : public Test
     StubDisplayListener stub_display_listener;
     mc::DefaultDisplayBufferCompositorFactory dbc_factory{
         mt::fake_shared(renderer_factory),
+        mtf::make_stubbed_rendering_platform(),
         null_comp_report};
 };
 

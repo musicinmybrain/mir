@@ -49,7 +49,7 @@ public:
 
 protected:
     auto maybe_create_interface(
-        graphics::RendererInterfaceBase::Tag const& /*type_tag*/) -> graphics::RendererInterfaceBase* override
+            graphics::RendererInterfaceBase::Tag const& /*type_tag*/) -> std::shared_ptr<graphics::RendererInterfaceBase> override
     {
         return nullptr;
     }

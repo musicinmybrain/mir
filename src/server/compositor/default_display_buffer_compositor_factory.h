@@ -22,6 +22,10 @@
 
 namespace mir
 {
+namespace graphics
+{
+class RenderingPlatform;
+}
 namespace renderer
 {
 class RendererFactory;
@@ -35,12 +39,14 @@ class DefaultDisplayBufferCompositorFactory : public DisplayBufferCompositorFact
 public:
     DefaultDisplayBufferCompositorFactory(
         std::shared_ptr<renderer::RendererFactory> const& renderer_factory,
+        std::shared_ptr<graphics::RenderingPlatform> const& platform,
         std::shared_ptr<CompositorReport> const& report);
 
     std::unique_ptr<DisplayBufferCompositor> create_compositor_for(graphics::DisplayBuffer& display_buffer);
 
 private:
     std::shared_ptr<renderer::RendererFactory> const renderer_factory;
+    std::shared_ptr<graphics::RenderingPlatform> const rendering_platform;
     std::shared_ptr<CompositorReport> const report;
 };
 

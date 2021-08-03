@@ -51,11 +51,11 @@ class GraphicBufferAllocator;
 class GLConfig;
 
 class RendererInterfaceBase
-    {
+{
     public:
     class Tag
-        {
-        public:
+    {
+    public:
         Tag() = default;
         virtual ~Tag() = default;
     };
@@ -63,6 +63,20 @@ class RendererInterfaceBase
     virtual ~RendererInterfaceBase() = default;
 };
 
+namespace gl
+{
+class Texture;
+}
+
+class GLRenderingProvider : public RendererInterfaceBase
+{
+public:
+    class Tag : public RendererInterfaceBase::Tag
+    {
+    };
+
+    virtual auto as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture> = 0;
+};
 
 /**
  * \defgroup platform_enablement Mir platform enablement
@@ -98,20 +112,19 @@ public:
      * result should be saved rather than re-acquiring an interface each time.
      *
      * \tparam Interface
-     * \return  On success: an Interface* with the same lifetime as the RenderingPlatform
-     *          it is acquired from.
-     *          On failure: nullptr
+     * \return  On success: an occupied std::shared_ptr<Interface>
+     *          On failure: std::shared_ptr<Interface>{nullptr}
      */
     template<typename Interface>
-    auto acquire_interface() -> Interface*
+    static auto acquire_interface(std::shared_ptr<RenderingPlatform> const& platform) -> std::shared_ptr<Interface>
     {
         static_assert(
             std::is_convertible_v<Interface*, RendererInterfaceBase*>,
             "Can only acquire a Renderer interface; Interface must implement RendererInterfaceBase");
 
-        if (auto const base_interface = maybe_create_interface(typename Interface::Tag{}))
+        if (auto const base_interface = platform->maybe_create_interface(typename Interface::Tag{}))
         {
-            if (auto const requested_interface = dynamic_cast<Interface*>(base_interface))
+            if (auto const requested_interface = std::dynamic_pointer_cast<Interface>(base_interface))
             {
                 return requested_interface;
             }
@@ -129,8 +142,9 @@ protected:
      * This should perform any runtime checks necessary to verify the requested interface is
      * expected to work and return a pointer to an implementation of that interface.
      *
-     * The returned pointer is required to be valid as long as this RenderingPlatform instance
-     * is live, but need not be the same object as this.
+     * This function is guaranteed to be called with `this` managed by a `shared_ptr`; if
+     * the returned value needs to share ownership with `this`, calls to std::shared_from_this
+     * can be expected to work.
      *
      * \param type_tag  [in]    An instance of the Tag type for the requested interface.
      *                          Implementations are expected to dynamic_cast<> this to
@@ -138,7 +152,7 @@ protected:
      * \return      A pointer to an implementation of the RenderInterfaceBase-derived
      *              interface that corresponds to the most-derived type of tag_type.
      */
-    virtual auto maybe_create_interface(RendererInterfaceBase::Tag const& type_tag) -> RendererInterfaceBase* = 0;
+    virtual auto maybe_create_interface(RendererInterfaceBase::Tag const& type_tag) -> std::shared_ptr<RendererInterfaceBase> = 0;
 };
 
 class DisplayPlatform

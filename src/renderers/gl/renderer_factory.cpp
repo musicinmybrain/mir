@@ -16,11 +16,19 @@
 
 #include "renderer_factory.h"
 #include "renderer.h"
+#include "mir/graphics/display_buffer.h"
+#include "mir/graphics/platform.h"
 
 namespace mrg = mir::renderer::gl;
 
-std::unique_ptr<mir::renderer::Renderer>
-mrg::RendererFactory::create_renderer_for(RenderTarget& render_target)
+auto mrg::RendererFactory::create_renderer_for(
+    graphics::DisplayBuffer& display_buffer,
+    std::shared_ptr<graphics::RenderingPlatform> platform) -> std::unique_ptr<mir::renderer::Renderer>
 {
-    return std::make_unique<Renderer>(render_target);
+    if (auto gl_interface = graphics::RenderingPlatform::acquire_interface<graphics::GLRenderingProvider>(std::move(platform)))
+    {
+        return std::make_unique<Renderer>(display_buffer, std::move(gl_interface));
+    }
+
+    BOOST_THROW_EXCEPTION((std::runtime_error{"Platform does not support GL rendering"}));
 }
