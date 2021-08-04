@@ -252,3 +252,8 @@ auto mgg::BufferAllocator::buffer_from_shm(
         egl_delegate,
         std::move(on_consumed));
 }
+
+auto mgg::GLRenderingProvider::as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture>
+{
+    return std::dynamic_pointer_cast<gl::Texture>(buffer);
+}
