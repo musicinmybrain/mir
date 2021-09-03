@@ -34,6 +34,7 @@
 #include "mir/renderer/gl/context.h"
 #include "mir/raii.h"
 #include "mir/wayland/wayland_base.h"
+#include "mir/renderer/gl/gl_surface.h"
 
 #define MIR_LOG_COMPONENT "platform-eglstream-kms"
 #include "mir/log.h"
@@ -569,4 +570,15 @@ auto mge::BufferAllocator::buffer_from_shm(
         std::move(wayland_executor),
         egl_delegate,
         std::move(on_consumed));
+}
+
+auto mir::graphics::eglstream::GLRenderingProvider::as_texture(std::shared_ptr<Buffer> buffer)
+    -> std::shared_ptr<gl::Texture>
+{
+    return std::dynamic_pointer_cast<gl::Texture>(std::move(buffer));
+}
+
+auto mge::GLRenderingProvider::surface_for_output(mg::DisplayBuffer& /*db*/) -> std::unique_ptr<gl::OutputSurface>
+{
+    return std::unique_ptr<gl::OutputSurface>();
 }

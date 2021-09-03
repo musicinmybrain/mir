@@ -20,6 +20,7 @@
 #include "mir/graphics/display_buffer.h"
 #include "mir/renderer/gl/render_target.h"
 #include "mir/graphics/platform.h"
+#include "mir/renderer/gl/gl_surface.h"
 
 #include "default_display_buffer_compositor.h"
 
@@ -29,12 +30,12 @@ namespace mc = mir::compositor;
 namespace mg = mir::graphics;
 
 mc::DefaultDisplayBufferCompositorFactory::DefaultDisplayBufferCompositorFactory(
+    std::shared_ptr<mg::GLRenderingProvider> render_platform,
     std::shared_ptr<mir::renderer::RendererFactory> const& renderer_factory,
-    std::shared_ptr<mg::RenderingPlatform> const& platform,
     std::shared_ptr<mc::CompositorReport> const& report) :
-    renderer_factory{renderer_factory},
-    rendering_platform{platform},
-    report{report}
+        allocator{std::move(render_platform)},
+        renderer_factory{renderer_factory},
+        report{report}
 {
 }
 
@@ -42,7 +43,8 @@ std::unique_ptr<mc::DisplayBufferCompositor>
 mc::DefaultDisplayBufferCompositorFactory::create_compositor_for(
     mg::DisplayBuffer& display_buffer)
 {
-    auto renderer = renderer_factory->create_renderer_for(display_buffer, rendering_platform);
+    auto output_surface = allocator->surface_for_output(display_buffer);
+    auto renderer = renderer_factory->create_renderer_for(std::move(output_surface), allocator);
     renderer->set_viewport(display_buffer.view_area());
     return std::make_unique<DefaultDisplayBufferCompositor>(
         display_buffer, std::move(renderer), report);

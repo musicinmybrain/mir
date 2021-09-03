@@ -88,6 +88,8 @@ class GLRenderingProvider : public graphics::GLRenderingProvider
 {
 public:
     auto as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture> override;
+
+    auto surface_for_output(DisplayBuffer& db) -> std::unique_ptr<gl::OutputSurface> override;
 };
 }
 }

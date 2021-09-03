@@ -30,6 +30,7 @@
 #include "mir/graphics/egl_wayland_allocator.h"
 #include "buffer_from_wl_shm.h"
 #include "mir/executor.h"
+#include "mir/renderer/gl/gl_surface.h"
 
 #include <boost/throw_exception.hpp>
 #include <boost/exception/errinfo_errno.hpp>
@@ -256,4 +257,10 @@ auto mgg::BufferAllocator::buffer_from_shm(
 auto mgg::GLRenderingProvider::as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture>
 {
     return std::dynamic_pointer_cast<gl::Texture>(buffer);
+}
+
+auto mgg::GLRenderingProvider::surface_for_output(DisplayBuffer& /*db*/) -> std::unique_ptr<gl::OutputSurface>
+{
+    // TODO: Needs to
+    return {};
 }

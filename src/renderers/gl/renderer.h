@@ -32,6 +32,7 @@
 namespace mir
 {
 namespace graphics { class DisplayBuffer; class GLRenderingProvider; }
+namespace graphics::gl { class OutputSurface; }
 namespace renderer
 {
 namespace gl
@@ -54,13 +55,13 @@ private:
 class Renderer : public renderer::Renderer
 {
 public:
-    Renderer(graphics::DisplayBuffer& display_buffer, std::shared_ptr<graphics::GLRenderingProvider> gl_interface);
+    Renderer(std::shared_ptr<graphics::GLRenderingProvider> gl_interface, std::unique_ptr<graphics::gl::OutputSurface> output);
     virtual ~Renderer();
 
     // These are called with a valid GL context:
     void set_viewport(geometry::Rectangle const& rect) override;
     void set_output_transform(glm::mat2 const&) override;
-    void render(graphics::RenderableList const&) const override;
+    auto render(graphics::RenderableList const&) const -> std::unique_ptr<graphics::Buffer> override;
 
     // This is called _without_ a GL context:
     void suspend() override;
@@ -85,7 +86,7 @@ public:
         Program(GLuint program_id);
     };
 private:
-    mutable CurrentRenderTarget render_target;
+    std::unique_ptr<graphics::gl::OutputSurface> const output_surface;
 
 protected:
     /**

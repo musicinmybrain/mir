@@ -45,4 +45,10 @@ target_link_libraries(mirplatformtest
   PUBLIC
     mirplatform
     mircommon
+    mir-test-doubles-static
+)
+
+target_include_directories(mirplatformtest
+  PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests/include/
 )

@@ -26,6 +26,7 @@
 #include "mir/renderer/renderer_factory.h"
 #include "mir/renderer/renderer.h"
 #include "mir/main_loop.h"
+#include "mir/renderer/gl/gl_surface.h"
 
 #include "../../src/include/platform/mir/graphics/pixel_format_utils.h"
 #include "mir/default_server_configuration.h"
@@ -411,6 +412,7 @@ void basic_software_buffer_drawing(
         [platform, &renderers, &factory, &min_height, &min_width](mg::DisplayBuffer& db)
         {
 <<<<<<< HEAD
+<<<<<<< HEAD
             auto const render_target = dynamic_cast<mir::renderer::gl::RenderTarget*>(db.native_display_buffer());
             if (!render_target)
             {
@@ -423,6 +425,19 @@ void basic_software_buffer_drawing(
 >>>>>>> 905b866655 (REBASE: Add, and use, GLRenderingProvider)
             min_height = std::min(min_height, db.view_area().bottom().as_int());
             min_width = std::min(min_width, db.view_area().right().as_int());
+=======
+            if (auto gl_interface = mg::RenderingPlatform::acquire_interface<mg::GLRenderingProvider>(platform))
+            {
+                auto output_surface = gl_interface->surface_for_output(db);
+                renderers.push_back(factory.create_renderer_for(std::move(output_surface), gl_interface));
+                min_height = std::min(min_height, db.view_area().bottom().as_int());
+                min_width = std::min(min_width, db.view_area().right().as_int());
+            }
+            else
+            {
+                BOOST_THROW_EXCEPTION((std::runtime_error{"Platform does not support GL"}));
+            }
+>>>>>>> a9434ee4bf (platform/renderer: Add gl::OutputSurface)
         });
 
     class DummyRenderable : public mg::Renderable

@@ -24,10 +24,11 @@
 #include "mir/log.h"
 #include "mir/report_exception.h"
 #include "mir/graphics/egl_error.h"
+#include "mir/graphics/platform.h"
 #include "mir/graphics/texture.h"
 #include "mir/graphics/program_factory.h"
 #include "mir/graphics/program.h"
-#include "mir/graphics/platform.h"
+#include "mir/renderer/gl/gl_surface.h"
 
 #define GLM_FORCE_RADIANS
 #include <glm/gtc/matrix_transform.hpp>
@@ -299,14 +300,15 @@ mrg::Renderer::Program::Program(GLuint program_id)
 }
 
 mrg::Renderer::Renderer(
-    graphics::DisplayBuffer& display_buffer,
-    std::shared_ptr<graphics::GLRenderingProvider> gl_interface)
-    : render_target(dynamic_cast<renderer::gl::RenderTarget&>(display_buffer)),
+    std::shared_ptr<graphics::GLRenderingProvider> gl_interface,
+    std::unique_ptr<graphics::gl::OutputSurface> output)
+    : output_surface{std::move(output)},
       clear_color{0.0f, 0.0f, 0.0f, 1.0f},
       program_factory{std::make_unique<ProgramFactory>()},
       display_transform(1),
       gl_interface{std::move(gl_interface)}
 {
+    output_surface->make_current();
     eglBindAPI(EGL_OPENGL_ES_API);
     EGLDisplay disp = eglGetCurrentDisplay();
     if (disp != EGL_NO_DISPLAY)
@@ -359,7 +361,6 @@ mrg::Renderer::Renderer(
 
 mrg::Renderer::~Renderer()
 {
-    render_target.ensure_current();
 }
 
 void mrg::Renderer::tessellate(std::vector<mgl::Primitive>& primitives,
@@ -369,9 +370,9 @@ void mrg::Renderer::tessellate(std::vector<mgl::Primitive>& primitives,
     primitives[0] = mgl::tessellate_renderable_into_rectangle(renderable, geom::Displacement{0,0});
 }
 
-void mrg::Renderer::render(mg::RenderableList const& renderables) const
+auto mrg::Renderer::render(mg::RenderableList const& renderables) const -> std::unique_ptr<mg::Buffer>
 {
-    render_target.bind();
+    output_surface->bind();
 
     glClearColor(clear_color[0], clear_color[1], clear_color[2], clear_color[3]);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -383,10 +384,13 @@ void mrg::Renderer::render(mg::RenderableList const& renderables) const
         draw(*r);
     }
 
-    render_target.swap_buffers();
+    auto output = output_surface->commit();
 
+    // Report any GL errors after commit, to catch any *during* commit
     while (auto const gl_error = glGetError())
         mir::log_debug("GL error: %d", gl_error);
+
+    return output;
 }
 
 void mrg::Renderer::draw(mg::Renderable const& renderable) const
@@ -596,8 +600,6 @@ void mrg::Renderer::update_gl_viewport()
      * the logical viewport aspect ratio doesn't match the display aspect.
      * This keeps pixels square. Note "black"-bars are really glClearColor.
      */
-    render_target.ensure_current();
-
     auto transformed_viewport = display_transform *
                                 glm::vec4(viewport.size.width.as_int(),
                                           viewport.size.height.as_int(), 0, 1);

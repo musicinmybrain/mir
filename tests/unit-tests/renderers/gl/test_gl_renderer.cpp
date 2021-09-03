@@ -28,6 +28,7 @@
 #include <mir/test/doubles/stub_gl_display_buffer.h>
 #include <mir/test/doubles/mock_gl_display_buffer.h>
 #include <mir/test/doubles/stub_gl_rendering_provider.h>
+#include <mir/test/doubles/mock_output_surface.h>
 
 using testing::SetArgPointee;
 using testing::InSequence;
@@ -156,7 +157,6 @@ public:
     testing::NiceMock<mtd::MockEGL> mock_egl;
     std::shared_ptr<mtd::MockTextureBuffer> mock_buffer;
     mtd::StubGLDisplayBuffer display_buffer{{{1, 2}, {3, 4}}};
-    testing::NiceMock<mtd::MockGLDisplayBuffer> mock_display_buffer;
     std::shared_ptr<testing::NiceMock<mtd::MockRenderable>> renderable;
     mg::RenderableList renderable_list;
     glm::mat4 trans;
@@ -168,6 +168,11 @@ public:
     StubProgram prog;
 };
 
+auto make_output_surface() -> std::unique_ptr<mtd::MockOutputSurface>
+{
+    return std::make_unique<testing::NiceMock<mtd::MockOutputSurface>>();
+}
+
 }
 
 TEST_F(GLRenderer, disables_blending_for_rgbx_surfaces)
@@ -177,7 +182,7 @@ TEST_F(GLRenderer, disables_blending_for_rgbx_surfaces)
         .WillOnce(Return(false));
     EXPECT_CALL(mock_gl, glDisable(GL_BLEND));
 
-    mrg::Renderer renderer(display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.render(renderable_list);
 }
 
@@ -187,7 +192,7 @@ TEST_F(GLRenderer, enables_blending_for_rgba_surfaces)
     EXPECT_CALL(mock_gl, glDisable(GL_BLEND)).Times(0);
     EXPECT_CALL(mock_gl, glEnable(GL_BLEND));
 
-    mrg::Renderer renderer(display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.render(renderable_list);
 }
 
@@ -198,7 +203,7 @@ TEST_F(GLRenderer, enables_blending_for_rgbx_translucent_surfaces)
     EXPECT_CALL(mock_gl, glDisable(GL_BLEND)).Times(0);
     EXPECT_CALL(mock_gl, glEnable(GL_BLEND));
 
-    mrg::Renderer renderer(display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.render(renderable_list);
 }
 
@@ -210,7 +215,7 @@ TEST_F(GLRenderer, uses_premultiplied_src_alpha_for_rgba_surfaces)
     EXPECT_CALL(mock_gl, glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
                                              GL_ONE, GL_ONE_MINUS_SRC_ALPHA));
 
-    mrg::Renderer renderer(display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.render(renderable_list);
 }
 
@@ -224,7 +229,7 @@ TEST_F(GLRenderer, avoids_src_alpha_for_rgbx_blending)  // LP: #1423462
                 glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_CONSTANT_ALPHA,
                                     GL_ZERO, GL_ONE));
 
-    mrg::Renderer renderer(display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.render(renderable_list);
 }
 
@@ -235,83 +240,43 @@ TEST_F(GLRenderer, clears_to_opaque_black)
     EXPECT_CALL(mock_gl, glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
     EXPECT_CALL(mock_gl, glClear(_));
 
-    mrg::Renderer renderer(display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
 
     renderer.render(renderable_list);
 }
 
 TEST_F(GLRenderer, makes_display_buffer_current_when_created)
 {
-    EXPECT_CALL(mock_display_buffer, make_current());
+    auto mock_output_surface = make_output_surface();
 
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    EXPECT_CALL(*mock_output_surface, make_current());
 
-    testing::Mock::VerifyAndClearExpectations(&mock_display_buffer);
-}
-
-TEST_F(GLRenderer, releases_display_buffer_current_when_destroyed)
-{
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
-
-    EXPECT_CALL(mock_display_buffer, release_current());
-}
-
-
-TEST_F(GLRenderer, makes_display_buffer_current_before_deleting_programs)
-{
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
-
-    testing::Sequence s1, s2;
-    // We must call MakeCurrent before anything else.
-    EXPECT_CALL(mock_display_buffer, make_current())
-        .InSequence(s1, s2);
-    /* As an implementation detail ProgramFactory calls
-     * glDeleteShader during shader compilation; this has to happen
-     * before rendering (and so, before SwapBuffers)
-     */
-    EXPECT_CALL(mock_gl, glDeleteShader(_))
-        .Times(AtLeast(1))
-        .InSequence(s1, s2);
-    EXPECT_CALL(mock_display_buffer, swap_buffers())
-        .InSequence(s1, s2);
-    EXPECT_CALL(mock_display_buffer, make_current())
-        .InSequence(s1, s2);
-    /* We only care that all glDeleteProgram() and glDeleteShader calls
-     * happen after make_current() and before the final release_current();
-     * we don't care what order they happen in otherwise.
-     */
-    EXPECT_CALL(mock_gl, glDeleteProgram(_))
-        .Times(AtLeast(1))
-        .InSequence(s1);
-    EXPECT_CALL(mock_gl, glDeleteShader(_))
-        .Times(AtLeast(1))
-        .InSequence(s2);
-    EXPECT_CALL(mock_display_buffer, release_current()).InSequence(s1, s2);
-
-    renderer.render(renderable_list);
+    mrg::Renderer renderer(gl_platform, std::move(mock_output_surface));
 }
 
 TEST_F(GLRenderer, makes_display_buffer_current_before_rendering)
 {
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    auto mock_output_surface = make_output_surface();
 
     InSequence seq;
-    EXPECT_CALL(mock_display_buffer, make_current());
+    EXPECT_CALL(*mock_output_surface, make_current());
     EXPECT_CALL(mock_gl, glClear(_));
 
-    renderer.render(renderable_list);
+    mrg::Renderer renderer(gl_platform, std::move(mock_output_surface));
 
-    testing::Mock::VerifyAndClearExpectations(&mock_display_buffer);
+    renderer.render(renderable_list);
 }
 
 TEST_F(GLRenderer, swaps_buffers_after_rendering)
 {
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    auto mock_output_surface = make_output_surface();
 
     InSequence seq;
     EXPECT_CALL(mock_gl, glDrawArrays(_, _, _)).Times(AnyNumber());
-    EXPECT_CALL(mock_display_buffer, swap_buffers());
+    EXPECT_CALL(*mock_output_surface, commit())
+        .WillRepeatedly(testing::Invoke([]() { return std::unique_ptr<mg::Buffer>(); }));
 
+    mrg::Renderer renderer(gl_platform, std::move(mock_output_surface));
     renderer.render(renderable_list);
 }
 
@@ -323,7 +288,7 @@ TEST_F(GLRenderer, sets_scissor_test)
     EXPECT_CALL(mock_gl, glDisable(GL_SCISSOR_TEST));
     EXPECT_CALL(mock_gl, glScissor(-1, 2, 2, 3));
 
-    mrg::Renderer renderer(display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.set_viewport({{1, 2}, {3, 4}});
 
     renderer.render(renderable_list);
@@ -335,7 +300,8 @@ TEST_F(GLRenderer, dont_set_scissor_test_when_unnecessary)
     EXPECT_CALL(mock_gl, glDisable(GL_SCISSOR_TEST)).Times(0);
     EXPECT_CALL(mock_gl, glScissor(_, _, _, _)).Times(0);
 
-    mrg::Renderer renderer(display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
+    renderer.set_viewport(display_buffer.view_area());
 
     renderer.render(renderable_list);
 }
@@ -354,7 +320,7 @@ TEST_F(GLRenderer, unchanged_viewport_avoids_gl_calls)
         .WillByDefault(DoAll(SetArgPointee<3>(screen_height),
                              Return(EGL_TRUE)));
 
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
 
     renderer.set_viewport(view_area);
 
@@ -376,7 +342,7 @@ TEST_F(GLRenderer, unchanged_viewport_updates_gl_if_rotated)
         .WillByDefault(DoAll(SetArgPointee<3>(screen_height),
                              Return(EGL_TRUE)));
 
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
 
     renderer.set_viewport(view_area);
 
@@ -403,7 +369,7 @@ TEST_F(GLRenderer, sets_viewport_unscaled_exact)
 
     EXPECT_CALL(mock_gl, glViewport(0, 0, screen_width, screen_height));
 
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.set_viewport(view_area);
 }
 
@@ -419,10 +385,10 @@ TEST_F(GLRenderer, sets_viewport_upscaled_exact)
     ON_CALL(mock_egl, eglQuerySurface(_,_,EGL_HEIGHT,_))
         .WillByDefault(DoAll(SetArgPointee<3>(screen_height),
                              Return(EGL_TRUE)));
-
     EXPECT_CALL(mock_gl, glViewport(0, 0, screen_width, screen_height));
 
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+
+    mrg::Renderer renderer(gl_platform,make_output_surface());
     renderer.set_viewport(view_area);
 }
 
@@ -441,7 +407,7 @@ TEST_F(GLRenderer, sets_viewport_downscaled_exact)
 
     EXPECT_CALL(mock_gl, glViewport(0, 0, screen_width, screen_height));
 
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.set_viewport(view_area);
 }
 
@@ -460,7 +426,7 @@ TEST_F(GLRenderer, sets_viewport_upscaled_narrow)
 
     EXPECT_CALL(mock_gl, glViewport(240, 0, 1440, 1080));
 
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.set_viewport(view_area);
 }
 
@@ -479,6 +445,6 @@ TEST_F(GLRenderer, sets_viewport_downscaled_wide)
 
     EXPECT_CALL(mock_gl, glViewport(0, 60, 640, 360));
 
-    mrg::Renderer renderer(mock_display_buffer, gl_platform);
+    mrg::Renderer renderer(gl_platform, make_output_surface());
     renderer.set_viewport(view_area);
 }

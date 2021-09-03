@@ -32,6 +32,8 @@
 #include "mir/test/doubles/null_display_sync_group.h"
 #include "mir/test/doubles/mock_event_sink.h"
 #include "mir/test/doubles/stub_buffer_allocator.h"
+#include "mir/test/doubles/mock_gl_buffer.h"
+#include "mir/test/doubles/mock_output_surface.h"
 #include "mir_test_framework/stub_server_platform_factory.h"
 
 #include <condition_variable>
@@ -58,8 +60,8 @@ class StubRendererFactory : public mir::renderer::RendererFactory
 {
 public:
     auto create_renderer_for(
-        mg::DisplayBuffer&,
-        std::shared_ptr<mg::RenderingPlatform> /*platform*/) -> std::unique_ptr<mir::renderer::Renderer> override
+        std::unique_ptr<mg::gl::OutputSurface>,
+        std::shared_ptr<mg::GLRenderingProvider>) const -> std::unique_ptr<mir::renderer::Renderer> override
     {
         return std::unique_ptr<mtd::StubRenderer>(new mtd::StubRenderer);
     }
@@ -124,6 +126,41 @@ struct StubDisplayListener : mc::DisplayListener
     virtual void remove_display(geom::Rectangle const& /*area*/) override {}
 };
 
+class StubTexture : public testing::NiceMock<mtd::MockTextureBuffer>
+{
+public:
+    StubTexture()
+    {
+        ON_CALL(*this, shader(_))
+            .WillByDefault(
+                Invoke(
+                    [](auto& factory) -> mg::gl::Program&
+                    {
+                        static int yo;
+                        return factory.compile_fragment_shader(
+                            &yo,
+                            "extension fragment",
+                            "shader code");
+                    }));
+        ON_CALL(*this, layout)
+            .WillByDefault(Return(mg::gl::Texture::Layout::GL));
+    }
+};
+
+class StubGLRenderingProvider : public mg::GLRenderingProvider
+{
+public:
+    auto as_texture(std::shared_ptr<mg::Buffer>) -> std::shared_ptr<mg::gl::Texture> override
+    {
+        return std::make_shared<StubTexture>();
+    }
+
+    auto surface_for_output(mg::DisplayBuffer&) -> std::unique_ptr<mg::gl::OutputSurface> override
+    {
+        return std::make_unique<testing::NiceMock<mtd::MockOutputSurface>>();
+    }
+};
+
 struct SurfaceStackCompositor : public Test
 {
     SurfaceStackCompositor() :
@@ -159,9 +196,10 @@ struct SurfaceStackCompositor : public Test
     CountingDisplaySyncGroup stub_secondary_db;
     StubDisplay stub_display{stub_primary_db, stub_secondary_db};
     StubDisplayListener stub_display_listener;
+
     mc::DefaultDisplayBufferCompositorFactory dbc_factory{
+        std::make_shared<StubGLRenderingProvider>(),
         mt::fake_shared(renderer_factory),
-        mtf::make_stubbed_rendering_platform(),
         null_comp_report};
 };
 

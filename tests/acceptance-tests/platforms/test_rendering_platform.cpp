@@ -23,8 +23,11 @@
 #include "mir/graphics/platform.h"
 #include "mir/options/program_option.h"
 #include "mir/emergency_cleanup_registry.h"
+#include "mir/test/doubles/stub_console_services.h"
+#include "mir/udev/wrapper.h"
 
 namespace mg = mir::graphics;
+namespace mtd = mir::test::doubles;
 
 RenderingPlatformTest::RenderingPlatformTest()
 {
@@ -97,20 +100,37 @@ public:
 
 TEST_P(RenderingPlatformTest, supports_gl_rendering)
 {
+    using namespace testing;
+    
     auto const module = GetParam()->platform_module();
 
     auto const platform_loader = module->load_function<mg::CreateRenderPlatform>(
         "create_rendering_platform",
         MIR_SERVER_GRAPHICS_PLATFORM_VERSION);
+    auto const platform_probe = module->load_function<mg::PlatformProbe>(
+        "probe_rendering_platform",
+        MIR_SERVER_GRAPHICS_PLATFORM_VERSION);
 
     mir::options::ProgramOption empty_options{};
     NullEmergencyCleanup emergency_cleanup{};
 
-/*    std::shared_ptr<mg::RenderingPlatform> const platform = platform_loader(
-        empty_options,
-        emergency_cleanup);
-*/
-    auto const gl_interface = mg::RenderingPlatform::acquire_interface<mg::GLRenderingProvider>(platform);
+    auto supported_devices = platform_probe(
+        std::make_shared<mtd::StubConsoleServices>(),
+        std::make_shared<mir::udev::Context>(),
+        empty_options);
+    
+    ASSERT_THAT(supported_devices, Not(IsEmpty()));
+    
+    for (auto const& device : supported_devices)
+    {
+        std::shared_ptr<mg::RenderingPlatform> const platform = platform_loader(
+            device,
+            {},            // Hopefully the platform can handle not pre-linking with a DisplayPlatform
+            empty_options,
+            emergency_cleanup);
 
-    EXPECT_THAT(gl_interface, testing::NotNull());
+        auto const gl_interface = mg::RenderingPlatform::acquire_interface<mg::GLRenderingProvider>(platform);
+        EXPECT_THAT(gl_interface, testing::NotNull());    
+    }
+
 }

@@ -21,6 +21,7 @@
 
 #include "mir_toolkit/common.h"
 #include "mir/test/doubles/stub_buffer_allocator.h"
+#include "mir/test/doubles/stub_gl_rendering_provider.h"
 #include "mir/test/doubles/fake_display.h"
 #include "mir/fd.h"
 #include "mir/assert_module_entry_point.h"
@@ -88,6 +89,16 @@ mir::UniqueModulePtr<mg::Display> mtf::StubGraphicPlatform::create_display(
     }
 
     return mir::make_module_ptr<mtd::FakeDisplay>(display_rects);
+}
+
+auto mtf::StubGraphicPlatform::maybe_create_interface(
+    mg::RendererInterfaceBase::Tag const& tag) -> std::shared_ptr<mg::RendererInterfaceBase>
+{
+    if (dynamic_cast<mg::GLRenderingProvider::Tag const*>(&tag))
+    {
+        return std::make_shared<mtd::StubGlRenderingPlatform>();
+    }
+    return nullptr;
 }
 
 namespace

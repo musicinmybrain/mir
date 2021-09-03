@@ -31,6 +31,8 @@ set(
   stub_buffer_allocator.cpp
   ${PROJECT_SOURCE_DIR}/tests/include/mir/test/doubles/stub_gl_rendering_provider.h
   ${PROJECT_SOURCE_DIR}/tests/include/mir/test/doubles/mock_gl_rendering_provider.h
+  ${PROJECT_SOURCE_DIR}/include/test/mir/test/doubles/null_display_buffer.h
+  ${PROJECT_SOURCE_DIR}/tests/include/mir/test/doubles/mock_output_surface.h
 )
 
 set(MIR_TEST_DOUBLES_UDEV_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/mock_udev.cpp)

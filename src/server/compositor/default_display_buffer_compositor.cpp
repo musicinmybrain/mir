@@ -16,6 +16,7 @@
 
 #include "default_display_buffer_compositor.h"
 
+#include "mir/compositor/compositor_report.h"
 #include "mir/compositor/scene.h"
 #include "mir/compositor/scene_element.h"
 #include "mir/graphics/renderable.h"

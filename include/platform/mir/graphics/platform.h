@@ -45,6 +45,7 @@ namespace graphics
 {
 class Buffer;
 class Display;
+class DisplayBuffer;
 class DisplayReport;
 class DisplayConfigurationPolicy;
 class GraphicBufferAllocator;
@@ -66,6 +67,7 @@ class RendererInterfaceBase
 namespace gl
 {
 class Texture;
+class OutputSurface;
 }
 
 class GLRenderingProvider : public RendererInterfaceBase
@@ -76,6 +78,8 @@ public:
     };
 
     virtual auto as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture> = 0;
+
+    virtual auto surface_for_output(DisplayBuffer& db) -> std::unique_ptr<gl::OutputSurface> = 0;
 };
 
 /**

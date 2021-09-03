@@ -21,6 +21,7 @@
 
 #include "mir/graphics/platform.h"
 #include "mir/test/doubles/mock_gl_buffer.h"
+#include "mir/test/doubles/mock_output_surface.h"
 
 namespace mir::test::doubles
 {
@@ -43,6 +44,11 @@ public:
                 }));
 
         return tex_buf;
+    }
+
+    auto surface_for_output(graphics::DisplayBuffer&) -> std::unique_ptr<graphics::gl::OutputSurface> override
+    {
+        return std::make_unique<testing::NiceMock<MockOutputSurface>>();
     }
 };
 }
