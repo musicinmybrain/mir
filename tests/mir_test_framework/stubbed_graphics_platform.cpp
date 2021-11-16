@@ -92,7 +92,9 @@ mir::UniqueModulePtr<mg::Display> mtf::StubGraphicPlatform::create_display(
 }
 
 auto mtf::StubGraphicPlatform::maybe_create_interface(
-    mg::RendererInterfaceBase::Tag const& tag) -> std::shared_ptr<mg::RendererInterfaceBase>
+    std::shared_ptr<mir::graphics::GraphicBufferAllocator> const& /*device*/,
+    mir::graphics::RendererInterfaceBase::Tag const& tag)
+    -> std::shared_ptr<mir::graphics::RendererInterfaceBase>
 {
     if (dynamic_cast<mg::GLRenderingProvider::Tag const*>(&tag))
     {

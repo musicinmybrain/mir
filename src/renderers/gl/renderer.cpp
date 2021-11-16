@@ -46,33 +46,6 @@ namespace mgl = mir::gl;
 namespace mrg = mir::renderer::gl;
 namespace geom = mir::geometry;
 
-mrg::CurrentRenderTarget::CurrentRenderTarget(RenderTarget& render_target)
-    : render_target{&render_target}
-{
-    ensure_current();
-}
-
-mrg::CurrentRenderTarget::~CurrentRenderTarget()
-{
-    render_target->release_current();
-}
-
-void mrg::CurrentRenderTarget::ensure_current()
-{
-    render_target->make_current();
-}
-
-void mrg::CurrentRenderTarget::bind()
-{
-    ensure_current();
-    render_target->bind();
-}
-
-void mrg::CurrentRenderTarget::swap_buffers()
-{
-    render_target->swap_buffers();
-}
-
 namespace
 {
 template<void (* deleter)(GLuint)>
@@ -303,7 +276,7 @@ mrg::Renderer::Renderer(
     std::shared_ptr<graphics::GLRenderingProvider> gl_interface,
     std::unique_ptr<graphics::gl::OutputSurface> output)
     : output_surface{std::move(output)},
-      clear_color{0.0f, 0.0f, 0.0f, 1.0f},
+      clear_color{0.5f, 0.5f, 0.5f, 1.0f},
       program_factory{std::make_unique<ProgramFactory>()},
       display_transform(1),
       gl_interface{std::move(gl_interface)}
@@ -370,7 +343,7 @@ void mrg::Renderer::tessellate(std::vector<mgl::Primitive>& primitives,
     primitives[0] = mgl::tessellate_renderable_into_rectangle(renderable, geom::Displacement{0,0});
 }
 
-auto mrg::Renderer::render(mg::RenderableList const& renderables) const -> std::unique_ptr<mg::Buffer>
+auto mrg::Renderer::render(mg::RenderableList const& renderables) const -> std::unique_ptr<mg::Framebuffer>
 {
     output_surface->bind();
 
@@ -460,7 +433,7 @@ void mrg::Renderer::draw(mg::Renderable const& renderable) const
             1.0, 0.0, 0.0, 0.0,
             0.0, -1.0, 0.0, 0.0,
             0.0, 0.0, 1.0, 0.0,
-            -1.0, 1.0, 0.0, 1.0
+            0.0, 0.0, 0.0, 1.0
         };
     }
 
@@ -590,10 +563,10 @@ void mrg::Renderer::set_viewport(geometry::Rectangle const& rect)
                       0.0f});
 
     viewport = rect;
-    update_gl_viewport();
+    update_gl_viewport(rect.size);
 }
 
-void mrg::Renderer::update_gl_viewport()
+void mrg::Renderer::update_gl_viewport(geom::Size const& output_size)
 {
     /*
      * Letterboxing: Move the glViewport to add black bars in the case that
@@ -605,23 +578,21 @@ void mrg::Renderer::update_gl_viewport()
                                           viewport.size.height.as_int(), 0, 1);
     auto viewport_width = fabs(transformed_viewport[0]);
     auto viewport_height = fabs(transformed_viewport[1]);
-    auto dpy = eglGetCurrentDisplay();
-    auto surf = eglGetCurrentSurface(EGL_DRAW);
-    EGLint buf_width = 0, buf_height = 0;
 
+    auto const output_width = output_size.width.as_value();
+    auto const output_height = output_size.height.as_value();
     if (viewport_width > 0.0f && viewport_height > 0.0f &&
-        eglQuerySurface(dpy, surf, EGL_WIDTH, &buf_width) && buf_width > 0 &&
-        eglQuerySurface(dpy, surf, EGL_HEIGHT, &buf_height) && buf_height > 0)
+        output_width > 0 && output_height > 0)
     {
-        GLint reduced_width = buf_width, reduced_height = buf_height;
-        // if viewport_aspect_ratio >= buf_aspect_ratio
-        if (viewport_width * buf_height >= buf_width * viewport_height)
-            reduced_height = buf_width * viewport_height / viewport_width;
+        GLint reduced_width = output_width, reduced_height = output_height;
+        // if viewport_aspect_ratio >= output_aspect_ratio
+        if (viewport_width * output_height >= output_width * viewport_height)
+            reduced_height = output_width * viewport_height / viewport_width;
         else
-            reduced_width = buf_height * viewport_width / viewport_height;
+            reduced_width = output_height * viewport_width / viewport_height;
 
-        GLint offset_x = (buf_width - reduced_width) / 2;
-        GLint offset_y = (buf_height - reduced_height) / 2;
+        GLint offset_x = (output_width - reduced_width) / 2;
+        GLint offset_y = (output_height - reduced_height) / 2;
 
         glViewport(offset_x, offset_y, reduced_width, reduced_height);
     }
@@ -629,11 +600,28 @@ void mrg::Renderer::update_gl_viewport()
 
 void mrg::Renderer::set_output_transform(glm::mat2 const& t)
 {
-    auto const new_display_transform = glm::mat4(t);
+    auto new_display_transform = glm::mat4(t);
+
+    switch (output_surface->layout())
+    {
+    case graphics::gl::OutputSurface::Layout::GL:
+        break;
+    case graphics::gl::OutputSurface::Layout::TopRowFirst:
+        // GL is going to render in its own coordinate system, but the OutputSurface
+        // wants the output to be the other way up. Get GL to render upside-down instead.
+        new_display_transform *= glm::mat4{
+            1.0, 0.0, 0.0, 0.0,
+            0.0, -1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0
+        };
+        break;
+    }
+
     if (new_display_transform != display_transform)
     {
         display_transform = new_display_transform;
-        update_gl_viewport();
+        update_gl_viewport(viewport.size);
     }
 }
 

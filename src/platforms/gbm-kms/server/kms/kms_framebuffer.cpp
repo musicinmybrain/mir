@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017 Canonical Ltd.
+ * Copyright © 2021 Canonical Ltd.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2 or 3,
@@ -14,23 +14,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "gbm_platform.h"
-#include "buffer_allocator.h"
+#include "kms_framebuffer.h"
 
-namespace mg = mir::graphics;
+#include <xf86drmMode.h>
+
 namespace mgg = mir::graphics::gbm;
 
-mgg::GBMPlatform::GBMPlatform(
-    std::shared_ptr<mir::udev::Context> const& udev,
-    std::shared_ptr<mgg::helpers::DRMHelper> const& drm) :
-    udev(udev),
-    drm(drm),
-    gbm{std::make_shared<mgg::helpers::GBMHelper>(drm->fd)}
+mgg::FBHandle::FBHandle(int drm_fd, uint32_t fb_id)
+        : drm_fd{drm_fd},
+          fb_id{fb_id}
 {
 }
 
-mir::UniqueModulePtr<mg::GraphicBufferAllocator> mgg::GBMPlatform::create_buffer_allocator(
-    Display const& output)
+mgg::FBHandle::~FBHandle()
 {
-    return make_module_ptr<mgg::BufferAllocator>(output);
+    // TODO: Some sort of logging on failure?
+    drmModeRmFB(drm_fd, fb_id);
+}
+
+auto mgg::FBHandle::get_drm_fb_id() const -> uint32_t
+{
+    return fb_id;
 }

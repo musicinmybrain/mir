@@ -22,6 +22,7 @@
 #include "kms_display_configuration.h"
 #include "kms_output.h"
 #include "kms_page_flipper.h"
+#include "dumb_fb.h"
 #include "mir/console_services.h"
 #include "mir/graphics/overlapping_output_grouping.h"
 #include "mir/graphics/event_handler_register.h"
@@ -32,15 +33,20 @@
 #include "mir/geometry/rectangle.h"
 #include "mir/renderer/gl/context.h"
 #include "mir/graphics/drm_formats.h"
+#include "mir/graphics/egl_error.h"
 
 #include <boost/throw_exception.hpp>
 #include <boost/exception/get_error_info.hpp>
-#include <boost/exception/errinfo_errno.hpp>
 
+#include <boost/exception/errinfo_errno.hpp>
 #define MIR_LOG_COMPONENT "gbm-kms"
 #include "mir/log.h"
 #include "kms-utils/drm_mode_resources.h"
 #include "kms-utils/kms_connector.h"
+
+#include <drm.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
 
 #include <stdexcept>
 #include <algorithm>
@@ -52,6 +58,89 @@ namespace geom = mir::geometry;
 
 namespace
 {
+class BasicEGLContext : public mir::renderer::gl::Context
+{
+public:
+    BasicEGLContext(EGLDisplay dpy, EGLConfig copy_from)
+        : dpy{dpy},
+          ctx{duplicate_context(dpy, copy_from)}
+    {
+    }
+
+    void make_current() const override
+    {
+        if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to make EGL context current"));
+        }
+    }
+
+    void release_current() const override
+    {
+        if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to release current EGL context"));
+        }
+    }
+
+    auto make_share_context() const -> std::unique_ptr<Context> override
+    {
+        return std::make_unique<BasicEGLContext>(dpy, ctx);
+    }
+
+private:
+    static auto get_context_attrib(EGLDisplay dpy, EGLContext ctx, EGLenum attrib) -> EGLint
+    {
+        EGLint result;
+        if (eglQueryContext(dpy, ctx, attrib, &result) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to query attribute of EGLContext"));
+        }
+        return result;
+    }
+
+    static auto duplicate_context(EGLDisplay dpy, EGLContext copy_from) -> EGLContext
+    {
+        EGLint const api = get_context_attrib(dpy, copy_from, EGL_CONTEXT_CLIENT_TYPE);
+        std::optional<EGLint> client_version;
+        if (api == EGL_OPENGL_ES_API)
+        {
+            // Client version only exists for GLES contexts
+            client_version = get_context_attrib(dpy, copy_from, EGL_CONTEXT_CLIENT_VERSION);
+        }
+
+        EGLint const config_id = get_context_attrib(dpy, copy_from, EGL_CONFIG_ID);
+        EGLConfig config;
+        int num_configs;
+        EGLint const attributes[] = {
+            EGL_CONFIG_ID, config_id,
+            EGL_NONE
+        };
+        if (eglChooseConfig(dpy, attributes, &config, 1, &num_configs) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION((mg::egl_error("Failed to find existing EGLContext's EGLConfig")));
+        }
+
+        std::vector<EGLint> ctx_attribs;
+        if (client_version)
+        {
+            ctx_attribs.push_back(EGL_CONTEXT_CLIENT_VERSION);
+            ctx_attribs.push_back(client_version.value());
+        }
+        ctx_attribs.push_back(EGL_NONE);
+        eglBindAPI(api);
+        auto ctx = eglCreateContext(dpy, config, copy_from, ctx_attribs.data());
+        if (ctx == EGL_NO_CONTEXT)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to create duplicate context"));
+        }
+        return ctx;
+    }
+
+    EGLDisplay const dpy;
+    EGLContext const ctx;
+};
+
 
 class GBMGLContext : public mir::renderer::gl::Context
 {
@@ -72,6 +161,11 @@ public:
     void release_current() const override
     {
         egl.release_current();
+    }
+
+    auto make_share_context() const -> std::unique_ptr<Context> override
+    {
+        return std::make_unique<BasicEGLContext>(egl.display(), egl.context());
     }
 
 private:
@@ -171,14 +265,17 @@ void log_drm_details(std::vector<std::shared_ptr<mgg::helpers::DRMHelper>> const
 
 }
 
-mgg::Display::Display(std::vector<std::shared_ptr<helpers::DRMHelper>> const& drm,
-                      std::shared_ptr<helpers::GBMHelper> const& gbm,
-                      std::shared_ptr<ConsoleServices> const& vt,
-                      mgg::BypassOption bypass_option,
-                      std::shared_ptr<DisplayConfigurationPolicy> const& initial_conf_policy,
-                      std::shared_ptr<GLConfig> const& gl_config,
-                      std::shared_ptr<DisplayReport> const& listener)
-    : drm{drm},
+mgg::Display::Display(
+    std::shared_ptr<DisplayPlatform> parent,
+    std::vector<std::shared_ptr<helpers::DRMHelper>> const& drm,
+    std::shared_ptr<helpers::GBMHelper> const& gbm,
+    std::shared_ptr<ConsoleServices> const& vt,
+    mgg::BypassOption bypass_option,
+    std::shared_ptr<DisplayConfigurationPolicy> const& initial_conf_policy,
+    std::shared_ptr<GLConfig> const& gl_config,
+    std::shared_ptr<DisplayReport> const& listener)
+    : owner{std::move(parent)},
+      drm{drm},
       gbm(gbm),
       vt(vt),
       listener(listener),
@@ -583,9 +680,6 @@ void mgg::Display::configure_locked(
             }
             else
             {
-                uint32_t const width  = current_mode_resolution.width.as_uint32_t();
-                uint32_t const height = current_mode_resolution.height.as_uint32_t();
-
                 for (auto const& group : kms_output_groups)
                 {
                     // TODO: Pull this out of the configuration
@@ -605,16 +699,13 @@ void mgg::Display::configure_locked(
                         *gl_config,
                         shared_egl.context(),
                         drm.size() != 1);
+
                     auto db = std::make_unique<DisplayBuffer>(
+                        owner,
+                        mir::Fd{mir::IntOwnedFd{group.front()->drm_fd()}},
                         bypass_option,
                         listener,
                         group,
-                        GBMOutputSurface{
-                            group.front()->drm_fd(),
-                            std::move(surface),
-                            width, height,
-                            std::move(egl)
-                        },
                         bounding_rect,
                         transformation);
 
@@ -632,4 +723,39 @@ void mgg::Display::configure_locked(
     if (!comp)
         /* Clear connected but unused outputs */
         clear_connected_unused_outputs();
+}
+
+namespace
+{
+
+class DumbAllocator : public mg::DumbDisplayProvider::Allocator
+{
+public:
+    DumbAllocator(mir::Fd drm_fd, mg::DisplayBuffer const& db)
+        : drm_fd(std::move(drm_fd)),
+          size{db.view_area().size}
+    {
+    }
+
+    auto acquire() -> std::unique_ptr<mg::DumbDisplayProvider::MappableFB> override
+    {
+        return std::make_unique<mgg::DumbFB>(drm_fd, size);
+    }
+
+private:
+    mir::Fd const drm_fd;
+    mir::geometry::Size const size;
+};
+
+}
+
+mgg::DumbDisplayProvider::DumbDisplayProvider(mir::Fd drm_fd)
+    : drm_fd{std::move(drm_fd)}
+{
+}
+
+auto mgg::DumbDisplayProvider::allocator_for_db(
+    mg::DisplayBuffer const& db) -> std::unique_ptr<mg::DumbDisplayProvider::Allocator>
+{
+    return std::make_unique<DumbAllocator>(drm_fd, db);
 }

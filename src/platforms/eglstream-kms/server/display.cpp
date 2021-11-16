@@ -122,11 +122,11 @@ EGLContext create_context(EGLDisplay display, EGLConfig config, EGLContext share
 class DisplayBuffer
     : public mg::DisplaySyncGroup,
       public mg::DisplayBuffer,
-      public mg::NativeDisplayBuffer,
       public mir::renderer::gl::RenderTarget
 {
 public:
     DisplayBuffer(
+        std::shared_ptr<mg::DisplayPlatform> owner,
         mir::Fd drm_node,
         EGLDisplay dpy,
         EGLContext ctx,
@@ -134,7 +134,8 @@ public:
         std::shared_ptr<mge::DRMEventHandler> event_handler,
         mge::kms::EGLOutput const& output,
         std::shared_ptr<mg::DisplayReport> display_report)
-        : dpy{dpy},
+        : owner{std::move(owner)},
+          dpy{dpy},
           ctx{create_context(dpy, config, ctx)},
           layer{output.output_layer()},
           crtc_id{output.crtc_id()},
@@ -232,11 +233,6 @@ public:
         return transform;
     }
 
-    mir::graphics::NativeDisplayBuffer* native_display_buffer() override
-    {
-        return this;
-    }
-
     void for_each_display_buffer(const std::function<void(mir::graphics::DisplayBuffer&)>& f) override
     {
         f(*this);
@@ -280,6 +276,7 @@ public:
 
 private:
 
+    std::shared_ptr<mg::DisplayPlatform> const owner;
     EGLDisplay dpy;
     EGLContext ctx;
     EGLOutputLayerEXT layer;

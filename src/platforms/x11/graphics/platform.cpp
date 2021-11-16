@@ -123,3 +123,9 @@ mir::UniqueModulePtr<mg::Display> mgx::Platform::create_display(
 {
     return make_module_ptr<mgx::Display>(x11_resources, title, output_sizes, initial_conf_policy, gl_config, report);
 }
+
+auto mgx::Platform::maybe_create_interface(mir::graphics::DisplayInterfaceBase::Tag const& /*type_tag*/)
+    -> std::shared_ptr<DisplayInterfaceBase>
+{
+    return {};
+}

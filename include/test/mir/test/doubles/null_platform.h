@@ -36,6 +36,12 @@ class NullDisplayPlatform : public graphics::DisplayPlatform
     {
         return mir::make_module_ptr<NullDisplay>();
     }
+
+    auto maybe_create_interface(graphics::DisplayInterfaceBase::Tag const&)
+        -> std::shared_ptr<graphics::DisplayInterfaceBase> override
+    {
+        return nullptr;
+    }
 };
 
 class NullRenderingPlatform : public graphics::RenderingPlatform
@@ -48,8 +54,8 @@ public:
     }
 
 protected:
-    auto maybe_create_interface(
-            graphics::RendererInterfaceBase::Tag const& /*type_tag*/) -> std::shared_ptr<graphics::RendererInterfaceBase> override
+    auto maybe_create_interface(std::shared_ptr<graphics::GraphicBufferAllocator> const& /*device*/,
+                                graphics::RendererInterfaceBase::Tag const&) -> std::shared_ptr<graphics::RendererInterfaceBase> override
     {
         return nullptr;
     }

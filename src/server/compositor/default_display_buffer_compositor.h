@@ -18,6 +18,7 @@
 #define MIR_COMPOSITOR_DEFAULT_DISPLAY_BUFFER_COMPOSITOR_H_
 
 #include "mir/compositor/display_buffer_compositor.h"
+#include "mir/graphics/platform.h"
 #include <memory>
 
 namespace mir
@@ -44,6 +45,7 @@ class DefaultDisplayBufferCompositor : public DisplayBufferCompositor
 public:
     DefaultDisplayBufferCompositor(
         graphics::DisplayBuffer& display_buffer,
+        graphics::GLRenderingProvider& gl_provider,
         std::shared_ptr<renderer::Renderer> const& renderer,
         std::shared_ptr<compositor::CompositorReport> const& report);
 
@@ -52,6 +54,7 @@ public:
 private:
     graphics::DisplayBuffer& display_buffer;
     std::shared_ptr<renderer::Renderer> const renderer;
+    std::unique_ptr<graphics::RendererInterfaceBase::FramebufferProvider> const fb_adaptor;
     std::shared_ptr<compositor::CompositorReport> const report;
 };
 

@@ -5,7 +5,6 @@ add_library(
 
   buffer_allocator.cpp
   display_helpers.cpp
-  gbm_platform.cpp
 )
 
 target_include_directories(

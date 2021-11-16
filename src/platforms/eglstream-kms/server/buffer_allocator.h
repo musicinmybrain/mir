@@ -53,7 +53,7 @@ class BufferAllocator:
     public graphics::GraphicBufferAllocator
 {
 public:
-    BufferAllocator(graphics::Display const& output);
+    BufferAllocator(std::unique_ptr<renderer::gl::Context> ctx);
     ~BufferAllocator();
 
     std::shared_ptr<Buffer> alloc_software_buffer(geometry::Size size, MirPixelFormat format) override;
@@ -95,9 +95,15 @@ private:
 class GLRenderingProvider : public graphics::GLRenderingProvider
 {
 public:
+    GLRenderingProvider(std::unique_ptr<renderer::gl::Context> ctx);
+
     auto as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture> override;
 
+    auto make_framebuffer_provider(DisplayBuffer const& target) -> std::unique_ptr<FramebufferProvider> override;
+
     auto surface_for_output(DisplayBuffer& db) -> std::unique_ptr<gl::OutputSurface> override;
+private:
+    std::unique_ptr<renderer::gl::Context> const ctx;
 };
 
 }

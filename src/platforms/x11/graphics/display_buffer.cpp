@@ -157,11 +157,6 @@ void mgx::DisplayBuffer::set_transformation(glm::mat2 const& t)
     transform = t;
 }
 
-mg::NativeDisplayBuffer* mgx::DisplayBuffer::native_display_buffer()
-{
-    return this;
-}
-
 void mgx::DisplayBuffer::for_each_display_buffer(
     std::function<void(graphics::DisplayBuffer&)> const& f)
 {

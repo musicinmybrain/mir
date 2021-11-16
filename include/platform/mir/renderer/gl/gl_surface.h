@@ -25,7 +25,7 @@ namespace mir
 {
 namespace graphics
 {
-class Buffer;
+class Framebuffer;
 
 namespace gl
 {
@@ -39,7 +39,15 @@ public:
     virtual void make_current() = 0;
 
     // Naming: SwapBuffers? Commit? Claim current buffer?
-    virtual auto commit() -> std::unique_ptr<graphics::Buffer> = 0;
+    virtual auto commit() -> std::unique_ptr<graphics::Framebuffer> = 0;
+
+    enum class Layout
+    {
+        TopRowFirst,            //< First row has y-coördinate 0, y increases with each row.
+        BottomRowFirst,         //< First row has y-coördinate $height, y decreases with each row
+        GL = BottomRowFirst     //< GL texture layout is in decreasing-y order.
+    };
+    virtual auto layout() const -> Layout = 0;
 };
 }
 }

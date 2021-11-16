@@ -43,7 +43,7 @@ add_library(
   egl_helper.cpp
   quirks.cpp
   quirks.h
-)
+  kms_framebuffer.h kms_framebuffer.cpp dumb_fb.cpp dumb_fb.h)
 
 target_link_libraries(
   mirplatformgraphicsgbmkmsobjects

@@ -46,7 +46,6 @@
 #include "mir/test/fake_shared.h"
 #include "mir/test/auto_unblock_thread.h"
 #include "mir/test/signal.h"
-#include "mir/test/as_render_target.h"
 
 #include <gtest/gtest.h>
 #include <memory>
@@ -129,6 +128,7 @@ public:
         std::shared_ptr<mgg::Platform> const& platform)
     {
         return std::make_shared<mgg::Display>(
+            nullptr,
             platform->drm,
             platform->gbm,
             platform->vt,
@@ -536,8 +536,8 @@ TEST_F(MesaDisplayTest, post_update)
     auto display = create_display(create_platform());
 
     display->for_each_display_sync_group([](mg::DisplaySyncGroup& group) {
-        group.for_each_display_buffer([](mg::DisplayBuffer& db) {
-            mt::as_render_target(db)->swap_buffers();
+        group.for_each_display_buffer([](mg::DisplayBuffer&) {
+            // Do thing that submits framebuffer here
         });
         group.post();
     });
@@ -595,8 +595,8 @@ TEST_F(MesaDisplayTest, post_update_flip_failure)
     {
         auto display = create_display(create_platform());
         display->for_each_display_sync_group([](mg::DisplaySyncGroup& group) {
-            group.for_each_display_buffer([](mg::DisplayBuffer& db) {
-                mt::as_render_target(db)->swap_buffers();
+            group.for_each_display_buffer([](mg::DisplayBuffer&) {
+                // Do whatever Framebuffer stuff is necessary…
             });
             group.post();
         });
@@ -632,13 +632,14 @@ TEST_F(MesaDisplayTest, successful_creation_of_display_reports_successful_setup_
 
     auto platform = create_platform();
     auto display = std::make_shared<mgg::Display>(
-                        platform->drm,
-                        platform->gbm,
-                        platform->vt,
-                        platform->bypass_option(),
-                        std::make_shared<mg::CloneDisplayConfigurationPolicy>(),
-                        std::make_shared<mtd::StubGLConfig>(),
-                        mock_report);
+        nullptr,
+        platform->drm,
+        platform->gbm,
+        platform->vt,
+        platform->bypass_option(),
+        std::make_shared<mg::CloneDisplayConfigurationPolicy>(),
+        std::make_shared<mtd::StubGLConfig>(),
+        mock_report);
 }
 
 TEST_F(MesaDisplayTest, outputs_correct_string_for_successful_setup_of_native_resources)
@@ -853,6 +854,7 @@ TEST_F(MesaDisplayTest, respects_gl_config)
 
     auto platform = create_platform();
     mgg::Display display{
+        {}, // Hopefully DisplayPlatform{nullptr} is enough for now?
         platform->drm,
         platform->gbm,
         platform->vt,

@@ -274,7 +274,7 @@ TEST_F(GLRenderer, swaps_buffers_after_rendering)
     InSequence seq;
     EXPECT_CALL(mock_gl, glDrawArrays(_, _, _)).Times(AnyNumber());
     EXPECT_CALL(*mock_output_surface, commit())
-        .WillRepeatedly(testing::Invoke([]() { return std::unique_ptr<mg::Buffer>(); }));
+        .WillRepeatedly(testing::Invoke([]() { return std::unique_ptr<mg::Framebuffer>(); }));
 
     mrg::Renderer renderer(gl_platform, std::move(mock_output_surface));
     renderer.render(renderable_list);

@@ -38,20 +38,6 @@ namespace renderer
 namespace gl
 {
 
-class CurrentRenderTarget
-{
-public:
-    CurrentRenderTarget(RenderTarget& render_target);
-    ~CurrentRenderTarget();
-
-    void ensure_current();
-    void bind();
-    void swap_buffers();
-
-private:
-    renderer::gl::RenderTarget* const render_target;
-};
-
 class Renderer : public renderer::Renderer
 {
 public:
@@ -61,7 +47,7 @@ public:
     // These are called with a valid GL context:
     void set_viewport(geometry::Rectangle const& rect) override;
     void set_output_transform(glm::mat2 const&) override;
-    auto render(graphics::RenderableList const&) const -> std::unique_ptr<graphics::Buffer> override;
+    auto render(graphics::RenderableList const&) const -> std::unique_ptr<graphics::Framebuffer> override;
 
     // This is called _without_ a GL context:
     void suspend() override;
@@ -115,7 +101,7 @@ protected:
     virtual void draw(graphics::Renderable const& renderable) const;
 
 private:
-    void update_gl_viewport();
+    void update_gl_viewport(geometry::Size const& output_size);
 
     class ProgramFactory;
     std::unique_ptr<ProgramFactory> const program_factory;

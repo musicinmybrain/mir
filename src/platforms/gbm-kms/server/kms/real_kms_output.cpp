@@ -15,6 +15,7 @@
  */
 
 #include "real_kms_output.h"
+#include "kms_framebuffer.h"
 #include "mir/graphics/display_configuration.h"
 #include "page_flipper.h"
 #include "kms-utils/kms_connector.h"
@@ -31,29 +32,6 @@ namespace mgg = mg::gbm;
 namespace mgk = mg::kms;
 namespace geom = mir::geometry;
 
-class mgg::FBHandle
-{
-public:
-    FBHandle(int drm_fd, uint32_t fb_id)
-        : drm_fd{drm_fd},
-          fb_id{fb_id}
-    {
-    }
-
-    ~FBHandle()
-    {
-        // TODO: Some sort of logging on failure?
-        drmModeRmFB(drm_fd, fb_id);
-    }
-
-    auto get_drm_fb_id() const -> uint32_t
-    {
-        return fb_id;
-    }
-private:
-    int const drm_fd;
-    uint32_t const fb_id;
-};
 
 
 mgg::RealKMSOutput::RealKMSOutput(
@@ -163,6 +141,7 @@ bool mgg::RealKMSOutput::set_crtc(FBHandle const& fb)
                               &connector->modes[mode_index]);
     if (ret)
     {
+        mir::log_error("Failed to set CRTC: %s (%i)", strerror(-ret), -ret);
         current_crtc = nullptr;
         return false;
     }

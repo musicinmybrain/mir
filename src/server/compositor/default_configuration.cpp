@@ -50,7 +50,7 @@ mir::DefaultServerConfiguration::the_display_buffer_compositor_factory()
         [this]()
         {
             auto rendering_platform = the_rendering_platforms().front();
-            if (auto gl_provider = mg::RenderingPlatform::acquire_interface<mg::GLRenderingProvider>(std::move(rendering_platform)))
+            if (auto gl_provider = rendering_platform->acquire_interface<mg::GLRenderingProvider>(the_buffer_allocator()))
             {
                 return wrap_display_buffer_compositor_factory(std::make_shared<mc::DefaultDisplayBufferCompositorFactory>(
                     std::move(gl_provider), the_renderer_factory(), the_compositor_report()));

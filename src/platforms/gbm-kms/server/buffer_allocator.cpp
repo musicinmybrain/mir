@@ -31,6 +31,7 @@
 #include "buffer_from_wl_shm.h"
 #include "mir/executor.h"
 #include "mir/renderer/gl/gl_surface.h"
+#include "mir/graphics/display_buffer.h"
 
 #include <boost/throw_exception.hpp>
 #include <boost/exception/errinfo_errno.hpp>
@@ -254,13 +255,182 @@ auto mgg::BufferAllocator::buffer_from_shm(
         std::move(on_consumed));
 }
 
+auto mgg::BufferAllocator::shared_egl_context() -> std::shared_ptr<renderer::gl::Context>
+{
+    return ctx;
+}
+
 auto mgg::GLRenderingProvider::as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture>
 {
     return std::dynamic_pointer_cast<gl::Texture>(buffer);
 }
 
-auto mgg::GLRenderingProvider::surface_for_output(DisplayBuffer& /*db*/) -> std::unique_ptr<gl::OutputSurface>
+namespace
 {
-    // TODO: Needs to
-    return {};
+template<void (*allocator)(GLsizei, GLuint*), void (* deleter)(GLsizei, GLuint const*)>
+class GLHandle
+{
+public:
+    GLHandle()
+    {
+        (*allocator)(1, &id);
+    }
+
+    ~GLHandle()
+    {
+        if (id)
+            (*deleter)(1, &id);
+    }
+
+    GLHandle(GLHandle const&) = delete;
+    GLHandle& operator=(GLHandle const&) = delete;
+
+    GLHandle(GLHandle&& from)
+        : id{from.id}
+    {
+        from.id = 0;
+    }
+
+    operator GLuint() const
+    {
+        return id;
+    }
+
+private:
+    GLuint id;
+};
+
+using RenderbufferHandle = GLHandle<&glGenRenderbuffers, &glDeleteRenderbuffers>;
+using FramebufferHandle = GLHandle<&glGenFramebuffers, &glDeleteFramebuffers>;
+
+
+class CPUCopyOutputSurface : public mg::gl::OutputSurface
+{
+public:
+    CPUCopyOutputSurface(
+        std::shared_ptr<mir::renderer::gl::Context> ctx,
+        std::unique_ptr<mg::DumbDisplayProvider::Allocator> allocator,
+        geom::Size size)
+        : allocator{std::move(allocator)},
+          ctx{std::move(ctx)},
+          size{std::move(size)}
+    {
+        glBindRenderbuffer(GL_RENDERBUFFER, colour_buffer);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, size.width.as_int(), size.height.as_int());
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colour_buffer);
+
+        auto status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE)
+        {
+            switch (status)
+            {
+                case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+                    BOOST_THROW_EXCEPTION((
+                        std::runtime_error{"FBO is incomplete: GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT"}
+                        ));
+                case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
+                    // Somehow we've managed to attach buffers with mismatched sizes?
+                    BOOST_THROW_EXCEPTION((
+                        std::logic_error{"FBO is incomplete: GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS"}
+                        ));
+                case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+                    BOOST_THROW_EXCEPTION((
+                        std::logic_error{"FBO is incomplete: GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT"}
+                        ));
+                case GL_FRAMEBUFFER_UNSUPPORTED:
+                    // This is the only one that isn't necessarily a programming error
+                    BOOST_THROW_EXCEPTION((
+                        std::runtime_error{"FBO is incomplete: formats selected are not supported by this GL driver"}
+                        ));
+                case 0:
+                    BOOST_THROW_EXCEPTION((
+                        mg::gl_error("Failed to verify GL Framebuffer completeness")));
+            }
+            BOOST_THROW_EXCEPTION((
+                std::runtime_error{
+                    std::string{"Unknown GL framebuffer error code: "} + std::to_string(status)}));
+        }
+    }
+
+    void bind() override
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    }
+
+    void make_current() override
+    {
+        ctx->make_current();
+    }
+
+    auto commit() -> std::unique_ptr<mg::Framebuffer> override
+    {
+        auto fb = allocator->acquire();
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        {
+            auto mapping = fb->map_writeable();
+            /*
+             * TODO: This introduces a pipeline stall; GL must wait for all previous rendering commands
+             * to complete before glReadPixels returns. We could instead do something fancy with
+             * pixel buffer objects to defer this cost.
+             */
+            /*
+             * TODO: We are assuming that the framebuffer pixel format is RGBX
+             */
+            glReadPixels(
+                0, 0,
+                size.width.as_int(), size.height.as_int(),
+                GL_RGBA, GL_UNSIGNED_BYTE, mapping->data());
+        }
+        return fb;
+    }
+
+    auto layout() const -> Layout override
+    {
+        return Layout::TopRowFirst;
+    }
+
+private:
+    std::unique_ptr<mg::DumbDisplayProvider::Allocator> const allocator;
+    std::shared_ptr<mir::renderer::gl::Context> const ctx;
+    geom::Size const size;
+    RenderbufferHandle const colour_buffer;
+    FramebufferHandle const fbo;
+};
+}
+
+auto mgg::GLRenderingProvider::surface_for_output(DisplayBuffer& db)
+    -> std::unique_ptr<gl::OutputSurface>
+{
+    auto dumb_display = DisplayPlatform::acquire_interface<DumbDisplayProvider>(db.owner());
+
+    auto fb_context = ctx->make_share_context();
+    fb_context->make_current();
+    return std::make_unique<CPUCopyOutputSurface>(
+        std::move(fb_context),
+        dumb_display->allocator_for_db(db),
+        db.view_area().size);
+}
+
+auto mgg::GLRenderingProvider::make_framebuffer_provider(DisplayBuffer const& /*target*/)
+    -> std::unique_ptr<FramebufferProvider>
+{
+    // TODO: Make this not a null implementation, so bypass/overlays can work again
+    class NullFramebufferProvider : public FramebufferProvider
+    {
+    public:
+        auto buffer_to_framebuffer(std::shared_ptr<Buffer>) -> std::unique_ptr<Framebuffer> override
+        {
+            // It is safe to return nullptr; this will be treated as “this buffer cannot be used as
+            // a framebuffer”.
+            return {};
+        }
+    };
+    return std::make_unique<NullFramebufferProvider>();
+}
+
+mgg::GLRenderingProvider::GLRenderingProvider(std::shared_ptr<renderer::gl::Context> ctx)
+    : ctx{std::move(ctx)}
+{
 }

@@ -24,6 +24,7 @@
 #include "display_helpers.h"
 #include "egl_helper.h"
 #include "platform_common.h"
+#include "mir/graphics/platform.h"
 
 #include <atomic>
 #include <mutex>
@@ -39,6 +40,7 @@ struct Rectangle;
 namespace graphics
 {
 
+class DisplayPlatform;
 class DisplayReport;
 class DisplayBuffer;
 class DisplayConfigurationPolicy;
@@ -61,13 +63,15 @@ class Cursor;
 class Display : public graphics::Display
 {
 public:
-    Display(std::vector<std::shared_ptr<helpers::DRMHelper>> const& drm,
-            std::shared_ptr<helpers::GBMHelper> const& gbm,
-            std::shared_ptr<ConsoleServices> const& vt,
-            BypassOption bypass_option,
-            std::shared_ptr<DisplayConfigurationPolicy> const& initial_conf_policy,
-            std::shared_ptr<GLConfig> const& gl_config,
-            std::shared_ptr<DisplayReport> const& listener);
+    Display(
+        std::shared_ptr<DisplayPlatform> parent,
+        std::vector<std::shared_ptr<helpers::DRMHelper>> const& drm,
+        std::shared_ptr<helpers::GBMHelper> const& gbm,
+        std::shared_ptr<ConsoleServices> const& vt,
+        BypassOption bypass_option,
+        std::shared_ptr<DisplayConfigurationPolicy> const& initial_conf_policy,
+        std::shared_ptr<GLConfig> const& gl_config,
+        std::shared_ptr<DisplayReport> const& listener);
     ~Display();
 
     geometry::Rectangle view_area() const;
@@ -99,6 +103,7 @@ public:
 private:
     void clear_connected_unused_outputs();
 
+    std::shared_ptr<DisplayPlatform> const owner;
     mutable std::mutex configuration_mutex;
     std::vector<std::shared_ptr<helpers::DRMHelper>> const drm;
     std::shared_ptr<helpers::GBMHelper> const gbm;
@@ -120,6 +125,17 @@ private:
     std::shared_ptr<GLConfig> const gl_config;
 };
 
+class DumbDisplayProvider : public graphics::DumbDisplayProvider
+{
+public:
+    DumbDisplayProvider(mir::Fd drm_fd);
+
+    auto allocator_for_db(graphics::DisplayBuffer const& db)
+        -> std::unique_ptr<graphics::DumbDisplayProvider::Allocator> override;
+
+private:
+    mir::Fd const drm_fd;
+};
 }
 }
 }

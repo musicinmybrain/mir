@@ -62,7 +62,14 @@ public:
 
 protected:
     auto maybe_create_interface(
-        mg::RendererInterfaceBase::Tag const& /*type_tag*/) -> std::shared_ptr<mg::RendererInterfaceBase> override
+        std::shared_ptr<mg::GraphicBufferAllocator> const& /*device*/,
+        mg::RendererInterfaceBase::Tag const&) -> std::shared_ptr<mg::RendererInterfaceBase> override
+    {
+        return nullptr;
+    }
+
+    auto maybe_create_interface(
+        mg::DisplayInterfaceBase::Tag const&) -> std::shared_ptr<mg::DisplayInterfaceBase> override
     {
         return nullptr;
     }

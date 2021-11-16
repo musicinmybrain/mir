@@ -34,6 +34,7 @@
 #include "mir/test/doubles/stub_buffer_allocator.h"
 #include "mir/test/doubles/mock_gl_buffer.h"
 #include "mir/test/doubles/mock_output_surface.h"
+#include "mir/test/doubles/stub_gl_rendering_provider.h"
 #include "mir_test_framework/stub_server_platform_factory.h"
 
 #include <condition_variable>
@@ -147,20 +148,6 @@ public:
     }
 };
 
-class StubGLRenderingProvider : public mg::GLRenderingProvider
-{
-public:
-    auto as_texture(std::shared_ptr<mg::Buffer>) -> std::shared_ptr<mg::gl::Texture> override
-    {
-        return std::make_shared<StubTexture>();
-    }
-
-    auto surface_for_output(mg::DisplayBuffer&) -> std::unique_ptr<mg::gl::OutputSurface> override
-    {
-        return std::make_unique<testing::NiceMock<mtd::MockOutputSurface>>();
-    }
-};
-
 struct SurfaceStackCompositor : public Test
 {
     SurfaceStackCompositor() :
@@ -198,7 +185,7 @@ struct SurfaceStackCompositor : public Test
     StubDisplayListener stub_display_listener;
 
     mc::DefaultDisplayBufferCompositorFactory dbc_factory{
-        std::make_shared<StubGLRenderingProvider>(),
+        std::make_shared<mtd::StubGlRenderingPlatform>(),
         mt::fake_shared(renderer_factory),
         null_comp_report};
 };

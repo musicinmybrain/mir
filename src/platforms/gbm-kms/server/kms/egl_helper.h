@@ -56,6 +56,7 @@ public:
     bool release_current() const;
 
     EGLContext context() const { return egl_context; }
+    auto display() const -> EGLDisplay { return egl_display; }
 
     void report_egl_configuration(std::function<void(EGLDisplay, EGLConfig)>);
 

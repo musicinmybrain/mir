@@ -36,7 +36,7 @@ public:
     void set_output_transform(glm::mat2 const&) override {}
     void suspend() override {}
 
-    auto render(graphics::RenderableList const& renderables) const -> std::unique_ptr<graphics::Buffer> override
+    auto render(graphics::RenderableList const& renderables) const -> std::unique_ptr<graphics::Framebuffer> override
     {
         for (auto const& r : renderables)
             r->buffer(); // We need to consume a buffer to unblock client tests

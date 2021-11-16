@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Canonical Ltd.
+ * Copyright © 2021 Canonical Ltd.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License version 2 or 3,
@@ -12,41 +12,37 @@
  *
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authored by: Christopher James Halse Rogers <christopher.halse.rogers@canonical.com>
  */
 
-#ifndef MIR_RENDERER_GL_CONTEXT_H_
-#define MIR_RENDERER_GL_CONTEXT_H_
+#ifndef MIR_GRAPHICS_GBM_KMS_FRAMEBUFFER_H_
+#define MIR_GRAPHICS_GBM_KMS_FRAMEBUFFER_H_
 
-#include <memory>
+#include "mir/graphics/platform.h"
 
 namespace mir
 {
-namespace renderer
+namespace graphics
 {
-namespace gl
+namespace gbm
 {
-
-class Context
+class FBHandle : public Framebuffer
 {
 public:
-    virtual ~Context() = default;
+    FBHandle(int drm_fd, uint32_t fb_id);
 
-    virtual void make_current() const = 0;
-    virtual void release_current() const = 0;
+    ~FBHandle() override;
 
-    /**
-     * Create an EGL context that shares this context's sharable-data
-     */
-    virtual auto make_share_context() const -> std::unique_ptr<Context> = 0;
+    auto get_drm_fb_id() const -> uint32_t;
 
-protected:
-    Context() = default;
-    Context(Context const&) = delete;
-    Context& operator=(Context const&) = delete;
+private:
+    int const drm_fd;
+    uint32_t const fb_id;
 };
-
 }
 }
 }
 
-#endif /* MIR_RENDERER_GL_CONTEXT_H_ */
+
+#endif //MIR_GRAPHICS_GBM_KMS_FRAMEBUFFER_H_

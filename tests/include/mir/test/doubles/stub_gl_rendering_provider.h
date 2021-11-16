@@ -50,6 +50,21 @@ public:
     {
         return std::make_unique<testing::NiceMock<MockOutputSurface>>();
     }
+
+    auto make_framebuffer_provider(graphics::DisplayBuffer const& /*target*/)
+        -> std::unique_ptr<FramebufferProvider> override
+    {
+        class NullFramebufferProvider : public FramebufferProvider
+        {
+        public:
+            auto buffer_to_framebuffer(std::shared_ptr<graphics::Buffer>)
+                -> std::unique_ptr<graphics::Framebuffer> override
+            {
+                return {};
+            }
+        };
+        return std::make_unique<NullFramebufferProvider>();
+    }
 };
 }
 

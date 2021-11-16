@@ -21,6 +21,7 @@
 #include <boost/throw_exception.hpp>
 
 #include "mir/graphics/platform.h"
+#include "mir/graphics/graphic_buffer_allocator.h"
 #include "mir/options/program_option.h"
 #include "mir/emergency_cleanup_registry.h"
 #include "mir/test/doubles/stub_console_services.h"
@@ -129,8 +130,7 @@ TEST_P(RenderingPlatformTest, supports_gl_rendering)
             empty_options,
             emergency_cleanup);
 
-        auto const gl_interface = mg::RenderingPlatform::acquire_interface<mg::GLRenderingProvider>(platform);
+        auto const gl_interface = platform->acquire_interface<mg::GLRenderingProvider>(nullptr);
         EXPECT_THAT(gl_interface, testing::NotNull());    
     }
-
 }

@@ -37,6 +37,7 @@ public:
 
 protected:
     auto maybe_create_interface(
+        std::shared_ptr<mir::graphics::GraphicBufferAllocator> const& device,
         mir::graphics::RendererInterfaceBase::Tag const& tag)
         -> std::shared_ptr<mir::graphics::RendererInterfaceBase> override;
 
