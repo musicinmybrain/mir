@@ -716,20 +716,3 @@ auto mge::GLRenderingProvider::make_framebuffer_provider(mir::graphics::DisplayB
     };
     return std::make_unique<NullFramebufferProvider>();
 }
-
-auto mge::GLRenderingProvider::make_framebuffer_provider(mir::graphics::DisplayBuffer const& /*target*/)
-    -> std::unique_ptr<FramebufferProvider>
-{
-    // TODO: *Can* we provide overlay support?
-    class NullFramebufferProvider : public FramebufferProvider
-    {
-    public:
-        auto buffer_to_framebuffer(std::shared_ptr<Buffer>) -> std::unique_ptr<Framebuffer> override
-        {
-            // It is safe to return nullptr; this will be treated as “this buffer cannot be used as
-            // a framebuffer”.
-            return {};
-        }
-    };
-    return std::make_unique<NullFramebufferProvider>();
-}

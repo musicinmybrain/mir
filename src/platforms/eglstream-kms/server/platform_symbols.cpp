@@ -42,7 +42,6 @@
 #include <xf86drmMode.h>
 
 namespace mg = mir::graphics;
-namespace mgc = mir::graphics::common;
 namespace mo = mir::options;
 namespace mge = mir::graphics::eglstream;
 
@@ -106,7 +105,54 @@ auto create_rendering_platform(
 {
     mir::assert_entry_point_signature<mg::CreateRenderPlatform>(&create_rendering_platform);
 
-    return mir::make_module_ptr<mge::RenderingPlatform>();
+    int device_count{0};
+    if (eglQueryDevicesEXT(0, nullptr, &device_count) != EGL_TRUE)
+    {
+        BOOST_THROW_EXCEPTION((mg::egl_error("Failed to query number of devices with eglQueryDevicesEXT")));
+    }
+
+    auto devices = std::vector<EGLDeviceEXT>(device_count);
+    if (eglQueryDevicesEXT(device_count, devices.data(), &device_count) != EGL_TRUE)
+    {
+        BOOST_THROW_EXCEPTION(mg::egl_error("Failed to get device list with eglQueryDevicesEXT"));
+    }
+    // Paranoia: What if the device count is lower in the second call?
+    devices.resize(device_count);
+
+    EGLDisplay display{EGL_NO_DISPLAY};
+    for (auto device : devices)
+    {
+        display = eglGetPlatformDisplayEXT(EGL_PLATFORM_DEVICE_EXT, device, nullptr);
+    
+        if (display == EGL_NO_DISPLAY)
+        {
+            BOOST_THROW_EXCEPTION((mg::egl_error("Failed to create EGL Display")));
+        }
+    
+        EGLint major_ver{1}, minor_ver{4};
+        if (!eglInitialize(display, &major_ver, &minor_ver))
+        {
+            BOOST_THROW_EXCEPTION((mg::egl_error("Failed to initialise EGL")));
+        }
+    
+        std::vector<char const*> missing_extensions;
+        for (char const* extension : {
+            "EGL_KHR_stream_consumer_gltexture",
+            "EGL_NV_stream_attrib"})
+        {
+            if (!epoxy_has_egl_extension(display, extension))
+            {
+                continue;
+            }
+        }
+        break;
+    }
+
+    if (display == EGL_NO_DISPLAY)
+    {
+        BOOST_THROW_EXCEPTION((mg::egl_error("Failed to find appropriate EGLDevice")));
+    }   
+    return mir::make_module_ptr<mge::RenderingPlatform>(display);
 }
 
 void add_graphics_platform_options(boost::program_options::options_description& /*config*/)

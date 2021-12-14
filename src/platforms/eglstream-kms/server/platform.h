@@ -43,7 +43,7 @@ namespace eglstream
 class RenderingPlatform : public graphics::RenderingPlatform
 {
 public:
-    RenderingPlatform();
+    RenderingPlatform(EGLDisplay dpy);
     ~RenderingPlatform() override;
 
     UniqueModulePtr<GraphicBufferAllocator>
@@ -53,6 +53,8 @@ protected:
     auto maybe_create_interface(
         std::shared_ptr<GraphicBufferAllocator> const& allocator,
         RendererInterfaceBase::Tag const& type_tag) -> std::shared_ptr<RendererInterfaceBase> override;
+private:
+    std::unique_ptr<renderer::gl::Context> const ctx;
 };
 
 class DisplayPlatform : public graphics::DisplayPlatform
