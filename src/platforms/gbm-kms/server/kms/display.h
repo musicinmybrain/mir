@@ -128,13 +128,10 @@ private:
 class DumbDisplayProvider : public graphics::DumbDisplayProvider
 {
 public:
-    DumbDisplayProvider(mir::Fd drm_fd);
+    DumbDisplayProvider();
 
     auto allocator_for_db(graphics::DisplayBuffer const& db)
         -> std::unique_ptr<graphics::DumbDisplayProvider::Allocator> override;
-
-private:
-    mir::Fd const drm_fd;
 };
 }
 }

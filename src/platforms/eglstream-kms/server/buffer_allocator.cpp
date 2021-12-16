@@ -15,6 +15,7 @@
  */
 
 #include <epoxy/egl.h>
+#include <epoxy/gl.h>
 
 #include "buffer_allocator.h"
 #include "mir/anonymous_shm_file.h"
@@ -579,7 +580,7 @@ private:
 
 using RenderbufferHandle = GLHandle<&glGenRenderbuffers, &glDeleteRenderbuffers>;
 using FramebufferHandle = GLHandle<&glGenFramebuffers, &glDeleteFramebuffers>;
-
+using TextureHandle = GLHandle<&glGenTextures, &glDeleteTextures>;
 
 class CPUCopyOutputSurface : public mg::gl::OutputSurface
 {
@@ -592,11 +593,23 @@ public:
           ctx{std::move(ctx)},
           size{std::move(size)}
     {
-        glBindRenderbuffer(GL_RENDERBUFFER, colour_buffer);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, size.width.as_int(), size.height.as_int());
+        // glBindRenderbuffer(GL_RENDERBUFFER, colour_buffer);
+        // glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, size.width.as_int(), size.height.as_int());
+
+        glBindTexture(GL_TEXTURE_2D, tex);
+        
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexStorage2DEXT(GL_TEXTURE_2D, 1, GL_BGRA8_EXT, size.width.as_int(), size.height.as_int());
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        
 
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colour_buffer);
+//        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colour_buffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
 
         auto status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
         if (status != GL_FRAMEBUFFER_COMPLETE)
@@ -673,6 +686,7 @@ private:
     std::shared_ptr<mir::renderer::gl::Context> const ctx;
     geom::Size const size;
     RenderbufferHandle const colour_buffer;
+    TextureHandle const tex;
     FramebufferHandle const fbo;
 };
 }

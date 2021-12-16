@@ -78,6 +78,7 @@ public:
 
     auto owner() const -> std::shared_ptr<DisplayPlatform> override;
 
+    auto drm_fd() const -> mir::Fd;
 private:
     bool schedule_page_flip(FBHandle const& bufobj);
     void set_crtc(FBHandle const&);

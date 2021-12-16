@@ -39,6 +39,7 @@
 #include <boost/exception/get_error_info.hpp>
 
 #include <boost/exception/errinfo_errno.hpp>
+#include <xf86drm.h>
 #define MIR_LOG_COMPONENT "gbm-kms"
 #include "mir/log.h"
 #include "kms-utils/drm_mode_resources.h"
@@ -600,6 +601,48 @@ auto make_surface_with_egl_context(
     }
 }
 
+// auto make_surface_with_egl_context(
+//     geom::Size size,
+//     uint32_t gbm_format,
+//     mgg::helpers::GBMHelper const& gbm,
+//     mg::GLConfig const& config,
+//     EGLContext shared_context,    
+//     bool cross_gpu)
+//      -> std::tuple<mgg::GBMSurfaceUPtr, mgg::helpers::EGLHelper>
+// {
+//     auto surface = gbm.create_scanout_surface(size.width.as_uint32_t(), size.height.as_uint32_t(), gbm_format, cross_gpu);
+//     auto raw_surface = surface.get();
+
+//     try
+//     {
+//         return std::make_tuple(
+//             std::move(surface),
+//             mgg::helpers::EGLHelper{
+//                 config,
+//                 gbm,
+//                 raw_surface,
+//                 gbm_format,
+//                 shared_context
+//         });
+//     }
+//     catch (mgg::helpers::EGLHelper::NoMatchingEGLConfig const&)
+//     {
+//          // TODO: Make a generic "other-alphaness" helper
+//         gbm_format = GBM_FORMAT_ARGB8888;
+//         surface = gbm.create_scanout_surface(size.width.as_uint32_t(), size.height.as_uint32_t(), gbm_format, cross_gpu);
+//         raw_surface = surface.get();
+//         return std::make_tuple(
+//             std::move(surface),
+//             mgg::helpers::EGLHelper{
+//                 config,
+//                 gbm,
+//                 raw_surface,
+//                 gbm_format,
+//                 shared_context
+//         });
+//     }
+// }
+
 }
 
 void mgg::Display::configure_locked(
@@ -682,23 +725,23 @@ void mgg::Display::configure_locked(
             {
                 for (auto const& group : kms_output_groups)
                 {
-                    // TODO: Pull this out of the configuration
-                    // TODO: Actually query available formats!
-                    mg::DRMFormat format{GBM_FORMAT_XRGB8888};
-                    /*
-                     * In a hybrid setup a scanout surface needs to be allocated differently if it
-                     * needs to be able to be shared across GPUs. This likely reduces performance.
-                     *
-                     * As a first cut, assume every scanout buffer in a hybrid setup might need
-                     * to be shared.
-                     */
-                    auto [surface, egl] = make_surface_with_egl_context(
-                        current_mode_resolution,
-                        format,
-                        *gbm,
-                        *gl_config,
-                        shared_egl.context(),
-                        drm.size() != 1);
+//                    // TODO: Pull this out of the configuration
+//                    // TODO: Actually query available formats!
+//                    mg::DRMFormat format{GBM_FORMAT_XRGB8888};
+//                    /*
+//                     * In a hybrid setup a scanout surface needs to be allocated differently if it
+//                     * needs to be able to be shared across GPUs. This likely reduces performance.
+//                     *
+//                     * As a first cut, assume every scanout buffer in a hybrid setup might need
+//                     * to be shared.
+//                     */
+//                    auto [surface, egl] = make_surface_with_egl_context(
+//                        current_mode_resolution,
+//                        format,
+//                        *gbm,
+//                        *gl_config,
+//                        shared_egl.context(),
+//                        drm.size() != 1);
 
                     auto db = std::make_unique<DisplayBuffer>(
                         owner,
@@ -727,35 +770,47 @@ void mgg::Display::configure_locked(
 
 namespace
 {
+auto drm_get_cap_checked(mir::Fd const& drm_fd, uint64_t cap) -> uint64_t
+{
+    uint64_t value;
+    if (drmGetCap(drm_fd, cap, &value))
+    {
+
+    }
+    return value;
+}
+
 
 class DumbAllocator : public mg::DumbDisplayProvider::Allocator
 {
 public:
     DumbAllocator(mir::Fd drm_fd, mg::DisplayBuffer const& db)
         : drm_fd(std::move(drm_fd)),
+          supports_modifiers{drm_get_cap_checked(this->drm_fd, DRM_CAP_ADDFB2_MODIFIERS) == 1},
           size{db.view_area().size}
     {
     }
 
     auto acquire() -> std::unique_ptr<mg::DumbDisplayProvider::MappableFB> override
     {
-        return std::make_unique<mgg::DumbFB>(drm_fd, size);
+        return std::make_unique<mgg::DumbFB>(drm_fd, supports_modifiers, size);
     }
 
 private:
     mir::Fd const drm_fd;
+    bool const supports_modifiers;
     mir::geometry::Size const size;
 };
 
 }
 
-mgg::DumbDisplayProvider::DumbDisplayProvider(mir::Fd drm_fd)
-    : drm_fd{std::move(drm_fd)}
+mgg::DumbDisplayProvider::DumbDisplayProvider()
 {
 }
 
 auto mgg::DumbDisplayProvider::allocator_for_db(
     mg::DisplayBuffer const& db) -> std::unique_ptr<mg::DumbDisplayProvider::Allocator>
 {
-    return std::make_unique<DumbAllocator>(drm_fd, db);
+    auto const& kms_db = dynamic_cast<mgg::DisplayBuffer const&>(db);
+    return std::make_unique<DumbAllocator>(kms_db.drm_fd(), db);
 }

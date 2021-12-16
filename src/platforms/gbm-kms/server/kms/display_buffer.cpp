@@ -17,6 +17,7 @@
 #include "display_buffer.h"
 #include "kms_output.h"
 #include "dumb_fb.h"
+#include "mir/fd.h"
 #include "mir/graphics/display_report.h"
 #include "mir/graphics/transformation.h"
 #include "bypass.h"
@@ -41,10 +42,8 @@
 #include <chrono>
 #include <algorithm>
 
-namespace mg = mir::graphics;
 namespace mgg = mir::graphics::gbm;
 namespace geom = mir::geometry;
-namespace mgmh = mir::graphics::gbm::helpers;
 
 mgg::DisplayBuffer::DisplayBuffer(
     std::shared_ptr<DisplayPlatform> owner,
@@ -64,7 +63,7 @@ mgg::DisplayBuffer::DisplayBuffer(
 {
     listener->report_successful_setup_of_native_resources();
 
-    auto initial_fb = std::make_shared<mgg::DumbFB>(std::move(drm_fd), area.size);
+    auto initial_fb = std::make_shared<mgg::DumbFB>(std::move(drm_fd), false, area.size);
 
     auto mapping = initial_fb->map_writeable();
     ::memset(mapping->data(), 24, mapping->len());
@@ -326,6 +325,11 @@ void mgg::DisplayBuffer::schedule_set_crtc()
 auto mir::graphics::gbm::DisplayBuffer::owner() const -> std::shared_ptr<DisplayPlatform>
 {
     return owner_;
+}
+
+auto mgg::DisplayBuffer::drm_fd() const -> mir::Fd
+{
+    return mir::Fd{mir::IntOwnedFd{outputs.front()->drm_fd()}};
 }
 
 void mir::graphics::gbm::DisplayBuffer::set_next_image(std::unique_ptr<Framebuffer> content)

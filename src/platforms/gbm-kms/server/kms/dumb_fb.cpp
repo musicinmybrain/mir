@@ -58,7 +58,7 @@ class mgg::DumbFB::DumbBuffer : public mir::renderer::software::RWMappableBuffer
         [[nodiscard]]
         auto format() const -> MirPixelFormat
         {
-            return mir_pixel_format_xbgr_8888;
+            return mir_pixel_format_xrgb_8888;
         }
 
         [[nodiscard]]
