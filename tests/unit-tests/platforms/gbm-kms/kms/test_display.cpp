@@ -883,6 +883,7 @@ TEST_F(MesaDisplayTest, uses_xrgb8888_framebuffer_when_argb8888_is_not_supported
 
     auto platform = create_platform();
     mgg::Display display{
+        {}, // Hopefully DisplayPlatform{nullptr} is enough for now?
         platform->drm,
         platform->gbm,
         platform->vt,
@@ -911,6 +912,7 @@ TEST_F(MesaDisplayTest, uses_argb8888_framebuffer_when_xrgb8888_is_not_supported
 
     auto platform = create_platform();
     mgg::Display display{
+        {}, // Hopefully DisplayPlatform{nullptr} is enough for now?
         platform->drm,
         platform->gbm,
         platform->vt,
