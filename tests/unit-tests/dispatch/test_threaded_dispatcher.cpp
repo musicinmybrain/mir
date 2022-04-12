@@ -317,7 +317,7 @@ TEST_F(ThreadedDispatcherTest, DISABLED_sets_thread_names_appropriately)
 }
 
 // Regression test for: lp #1439719
-TEST(ThreadedDispatcherSignalTest, keeps_dispatching_after_signal_interruption)
+TEST(ThreadedDispatcherSignalTest, DISABLED_keeps_dispatching_after_signal_interruption)
 {
     using namespace std::chrono_literals;
     mt::CrossProcessAction stop_and_restart_process;
