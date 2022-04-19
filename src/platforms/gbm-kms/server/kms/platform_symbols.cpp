@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mir/graphics/platform.h"
 #define MIR_LOG_COMPONENT "gbm-kms"
 #include "mir/log.h"
 
@@ -52,7 +53,7 @@ char const* bypass_option_name{"bypass"};
 }
 
 mir::UniqueModulePtr<mg::DisplayPlatform> create_display_platform(
-    mg::SupportedDevice const&,
+    mg::SupportedDevice const& /*device*/,
     std::shared_ptr<mo::Option> const& options,
     std::shared_ptr<mir::EmergencyCleanupRegistry> const& emergency_cleanup_registry,
     std::shared_ptr<mir::ConsoleServices> const& console,

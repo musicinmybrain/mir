@@ -44,6 +44,7 @@
 namespace mg = mir::graphics;
 namespace mo = mir::options;
 namespace mge = mir::graphics::eglstream;
+namespace mgc = mir::graphics::common;
 
 namespace
 {

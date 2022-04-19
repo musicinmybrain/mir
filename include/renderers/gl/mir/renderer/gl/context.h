@@ -18,6 +18,7 @@
 #define MIR_RENDERER_GL_CONTEXT_H_
 
 #include <memory>
+#include <EGL/egl.h>
 
 namespace mir
 {
@@ -38,6 +39,8 @@ public:
      * Create an EGL context that shares this context's sharable-data
      */
     virtual auto make_share_context() const -> std::unique_ptr<Context> = 0;
+
+    explicit virtual operator EGLContext() = 0;
 
 protected:
     Context() = default;

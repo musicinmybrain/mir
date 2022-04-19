@@ -32,6 +32,7 @@ public:
     void make_current() const override {}
     void release_current() const override {}
     auto make_share_context() const -> std::unique_ptr<Context> override { return {}; }
+    explicit operator EGLContext() override { return EGL_NO_DISPLAY; }
 };
 
 }

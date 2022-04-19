@@ -62,6 +62,11 @@ public:
         return std::make_unique<DumbGLContext>(ctx);
     }
 
+    explicit operator EGLContext() override
+    {
+        return ctx;
+    }
+
 private:
     EGLDisplay const dpy{reinterpret_cast<void*>(0xdeebbeed)};
     EGLContext const ctx;

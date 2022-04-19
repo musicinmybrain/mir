@@ -24,8 +24,8 @@
 #include "mir/graphics/graphic_buffer_allocator.h"
 #include "mir/options/program_option.h"
 #include "mir/emergency_cleanup_registry.h"
-#include "mir/test/doubles/stub_console_services.h"
 #include "mir/udev/wrapper.h"
+#include "mir/test/doubles/null_console_services.h"
 
 namespace mg = mir::graphics;
 namespace mtd = mir::test::doubles;
@@ -114,9 +114,10 @@ TEST_P(RenderingPlatformTest, supports_gl_rendering)
 
     mir::options::ProgramOption empty_options{};
     NullEmergencyCleanup emergency_cleanup{};
+    auto const console_services = std::make_shared<mir::test::doubles::NullConsoleServices>();
 
     auto supported_devices = platform_probe(
-        std::make_shared<mtd::StubConsoleServices>(),
+        console_services,
         std::make_shared<mir::udev::Context>(),
         empty_options);
     

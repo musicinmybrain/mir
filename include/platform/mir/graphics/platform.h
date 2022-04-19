@@ -25,6 +25,7 @@
 #include "mir/udev/wrapper.h"
 #include "mir/renderer/sw/pixel_source.h"
 
+
 namespace mir
 {
 class EmergencyCleanupRegistry;
@@ -252,6 +253,19 @@ public:
         -> std::unique_ptr<Allocator> = 0;
 };
 
+class DmaBufBuffer;
+
+class DmaBufDisplayProvider : public DisplayInterfaceBase
+{
+public:
+    class Tag : public DisplayInterfaceBase::Tag
+    {
+    };
+
+    virtual auto framebuffer_for(std::shared_ptr<DmaBufBuffer> buffer)
+        -> std::unique_ptr<Framebuffer> = 0;
+};
+
 class DisplayPlatform : public std::enable_shared_from_this<DisplayPlatform>
 {
 public:
@@ -295,7 +309,7 @@ public:
                 return requested_interface;
             }
             BOOST_THROW_EXCEPTION((std::logic_error{
-                                          "Implementation error! Platform returned object that does not support requested interface"}));
+                "Implementation error! Platform returned object that does not support requested interface"}));
         }
         return nullptr;
     }

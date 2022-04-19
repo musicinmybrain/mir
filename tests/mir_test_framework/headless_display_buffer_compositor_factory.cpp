@@ -16,7 +16,6 @@
 
 #include "mir_test_framework/headless_display_buffer_compositor_factory.h"
 #include "mir_test_framework/passthrough_tracker.h"
-#include "mir/renderer/gl/render_target.h"
 #include "mir/graphics/display_buffer.h"
 #include "mir/graphics/texture.h"
 #include "mir/graphics/platform.h"
@@ -28,7 +27,6 @@
 
 namespace mtf = mir_test_framework;
 namespace mg = mir::graphics;
-namespace mrg = mir::renderer::gl;
 namespace mc = mir::compositor;
 namespace geom = mir::geometry;
 

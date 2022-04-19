@@ -109,6 +109,11 @@ public:
         return std::make_unique<BasicEGLContext>(dpy, ctx);
     }
 
+    explicit operator EGLContext() override
+    {
+        return ctx;
+    }
+
 private:
     static auto get_context_attrib(EGLDisplay dpy, EGLContext ctx, EGLenum attrib) -> EGLint
     {

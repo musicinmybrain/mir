@@ -103,6 +103,13 @@ auto mtf::StubGraphicPlatform::maybe_create_interface(
     return nullptr;
 }
 
+auto mtf::StubGraphicPlatform::maybe_create_interface(
+    mg::DisplayInterfaceBase::Tag const& /*tag*/)
+    -> std::shared_ptr<mg::DisplayInterfaceBase>
+{
+    return nullptr;
+}
+
 namespace
 {
 std::unique_ptr<std::vector<geom::Rectangle>> chosen_display_rects;

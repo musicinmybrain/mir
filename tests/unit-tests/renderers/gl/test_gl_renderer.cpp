@@ -25,8 +25,6 @@
 #include <mir/test/doubles/mock_gl.h>
 #include <mir/test/doubles/mock_egl.h>
 #include <src/renderers/gl/renderer.h>
-#include <mir/test/doubles/stub_gl_display_buffer.h>
-#include <mir/test/doubles/mock_gl_display_buffer.h>
 #include <mir/test/doubles/stub_gl_rendering_provider.h>
 #include <mir/test/doubles/mock_output_surface.h>
 
@@ -156,7 +154,6 @@ public:
     testing::NiceMock<mtd::MockGL> mock_gl;
     testing::NiceMock<mtd::MockEGL> mock_egl;
     std::shared_ptr<mtd::MockTextureBuffer> mock_buffer;
-    mtd::StubGLDisplayBuffer display_buffer{{{1, 2}, {3, 4}}};
     std::shared_ptr<testing::NiceMock<mtd::MockRenderable>> renderable;
     mg::RenderableList renderable_list;
     glm::mat4 trans;
@@ -289,7 +286,7 @@ TEST_F(GLRenderer, sets_scissor_test)
     EXPECT_CALL(mock_gl, glScissor(-1, 2, 2, 3));
 
     mrg::Renderer renderer(gl_platform, make_output_surface());
-    renderer.set_viewport({{1, 2}, {3, 4}});
+    renderer.set_viewport(mir::geometry::Rectangle{{0, 0}, {2, 3}});
 
     renderer.render(renderable_list);
 }
@@ -301,7 +298,7 @@ TEST_F(GLRenderer, dont_set_scissor_test_when_unnecessary)
     EXPECT_CALL(mock_gl, glScissor(_, _, _, _)).Times(0);
 
     mrg::Renderer renderer(gl_platform, make_output_surface());
-    renderer.set_viewport(display_buffer.view_area());
+    renderer.set_viewport(mir::geometry::Rectangle{{0, 0}, {2, 3}});
 
     renderer.render(renderable_list);
 }

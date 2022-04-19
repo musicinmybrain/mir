@@ -22,7 +22,6 @@
 #include "mir/logging/logger.h"
 #include "mir/graphics/display_buffer.h"
 #include "mir/graphics/default_display_configuration_policy.h"
-#include "mir/renderer/gl/render_target.h"
 #include "mir/time/steady_clock.h"
 #include "mir/glib_main_loop.h"
 #include "mir/fatal.h"

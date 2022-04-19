@@ -41,6 +41,12 @@ target_compile_definitions(
   PRIVATE
     MIR_SERVER_GRAPHICS_PLATFORM_VERSION="${MIR_SERVER_GRAPHICS_PLATFORM_VERSION}")
 
+target_include_directories(
+  mirplatformtest
+  PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests/include
+)
+
 target_link_libraries(mirplatformtest
   PUBLIC
     mirplatform

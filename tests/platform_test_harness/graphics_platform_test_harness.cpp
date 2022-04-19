@@ -38,7 +38,6 @@
 #include <chrono>
 #include <iostream>
 #include <mir/geometry/displacement.h>
-#include <mir/renderer/gl/render_target.h>
 #include <thread>
 #include <unistd.h>
 
@@ -241,29 +240,6 @@ auto test_display_has_at_least_one_enabled_output(mg::Display& display) -> bool
     return output_count > 0;
 }
 
-auto test_display_buffers_support_gl(mg::Display& display) -> bool
-{
-    bool all_support_gl{true};
-    for_each_display_buffer(
-        display,
-        [&all_support_gl](mg::DisplayBuffer& db)
-        {
-            all_support_gl &=
-                dynamic_cast<mir::renderer::gl::RenderTarget*>(db.native_display_buffer()) != nullptr;
-        });
-
-    if (all_support_gl)
-    {
-        std::cout << "DisplayBuffers support GL rendering" << std::endl;
-    }
-    else
-    {
-        std::cout << "DisplayBuffers do *not* support GL rendering" << std::endl;
-    }
-
-    return all_support_gl;
-}
-
 auto dump_egl_config(mg::Display& display) -> bool
 {
     auto& context_source = dynamic_cast<mir::renderer::gl::ContextSource&>(display);
@@ -411,21 +387,11 @@ void basic_software_buffer_drawing(
         display,
         [platform, &renderers, &factory, &min_height, &min_width](mg::DisplayBuffer& db)
         {
-<<<<<<< HEAD
-<<<<<<< HEAD
             auto const render_target = dynamic_cast<mir::renderer::gl::RenderTarget*>(db.native_display_buffer());
             if (!render_target)
             {
                 BOOST_THROW_EXCEPTION(std::logic_error("DisplayBuffer does not support GL rendering"));
             }
-            renderers.push_back(factory.create_renderer_for(*render_target));
-            renderers.back()->set_viewport(db.view_area());
-=======
-            renderers.push_back(factory.create_renderer_for(db, platform));
->>>>>>> 905b866655 (REBASE: Add, and use, GLRenderingProvider)
-            min_height = std::min(min_height, db.view_area().bottom().as_int());
-            min_width = std::min(min_width, db.view_area().right().as_int());
-=======
             if (auto gl_interface = mg::RenderingPlatform::acquire_interface<mg::GLRenderingProvider>(platform))
             {
                 auto output_surface = gl_interface->surface_for_output(db);
@@ -437,7 +403,6 @@ void basic_software_buffer_drawing(
             {
                 BOOST_THROW_EXCEPTION((std::runtime_error{"Platform does not support GL"}));
             }
->>>>>>> a9434ee4bf (platform/renderer: Add gl::OutputSurface)
         });
 
     class DummyRenderable : public mg::Renderable

@@ -22,7 +22,6 @@
 #include <mir/graphics/buffer_id.h>
 #include <mir/graphics/renderable.h>
 #include <mir/gl/primitive.h>
-#include "mir/renderer/gl/render_target.h"
 
 #include <GLES2/gl2.h>
 #include <unordered_map>

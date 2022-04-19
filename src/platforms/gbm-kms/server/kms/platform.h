@@ -21,6 +21,8 @@
 #include "platform_common.h"
 #include "display_helpers.h"
 
+#include <EGL/egl.h>
+
 namespace mir
 {
 class EmergencyCleanupRegistry;
@@ -64,6 +66,20 @@ private:
     BypassOption const bypass_option_;
 };
 
+class GBMDeviceDeleter
+{
+public:
+    void operator()(gbm_device* dev)
+    {
+        if (dev)
+        {
+            gbm_device_destroy(dev);
+        }
+    }
+};
+
+using GBMDeviceUPtr = std::unique_ptr<gbm_device, GBMDeviceDeleter>;
+
 class RenderingPlatform : public graphics::RenderingPlatform
 {
 public:
@@ -78,7 +94,8 @@ protected:
         RendererInterfaceBase::Tag const& type_tag) -> std::shared_ptr<RendererInterfaceBase> override;
 
 private:
-
+    GBMDeviceUPtr const device;
+    EGLDisplay const dpy;
 };
 
 }

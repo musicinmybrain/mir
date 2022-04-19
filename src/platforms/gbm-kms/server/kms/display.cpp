@@ -89,6 +89,10 @@ public:
         return std::make_unique<BasicEGLContext>(dpy, ctx);
     }
 
+    explicit operator EGLContext() override
+    {
+        return ctx;
+    }
 private:
     static auto get_context_attrib(EGLDisplay dpy, EGLContext ctx, EGLenum attrib) -> EGLint
     {
@@ -152,6 +156,11 @@ public:
         : egl{gl_config}
     {
         egl.setup(gbm, shared_context);
+    }
+
+    explicit operator EGLContext() override
+    {
+        return egl.context();
     }
 
     void make_current() const override
@@ -535,114 +544,6 @@ void add_to_drm_device_group(
         grouping.push_back(std::vector<std::shared_ptr<mgg::KMSOutput>>{std::move(output)});
     }
 }
-
-auto get_equivalent_other_alphaness_format(mg::DRMFormat const format) -> std::optional<mg::DRMFormat>
-{
-    if (format.has_alpha())
-    {
-        return format.opaque_equivalent();
-    }
-    else
-    {
-        return format.alpha_equivalent();
-    }
-}
-
-auto make_surface_with_egl_context(
-    geom::Size size,
-    mg::DRMFormat format,
-    mgg::helpers::GBMHelper const& gbm,
-    mg::GLConfig const& config,
-    EGLContext shared_context,    
-    bool cross_gpu)
-     -> std::tuple<mgg::GBMSurfaceUPtr, mgg::helpers::EGLHelper>
-{
-    auto surface = gbm.create_scanout_surface(size.width.as_uint32_t(), size.height.as_uint32_t(), format, cross_gpu);
-    auto raw_surface = surface.get();
-
-    try
-    {
-        return std::make_tuple(
-            std::move(surface),
-            mgg::helpers::EGLHelper{
-                config,
-                gbm,
-                raw_surface,
-                format,
-                shared_context
-        });
-    }
-    catch (mgg::helpers::EGLHelper::NoMatchingEGLConfig const&)
-    {
-        // If the format has an opaque/alpha equivalent, try that
-        auto equivalent_format = get_equivalent_other_alphaness_format(format);
-        if (!equivalent_format)
-        {
-            // No equivalent format to try, so bail
-            throw;
-        }
-
-        surface = gbm.create_scanout_surface(
-            size.width.as_uint32_t(),
-            size.height.as_uint32_t(),
-            *equivalent_format,
-            cross_gpu);
-        raw_surface = surface.get();
-        return std::make_tuple(
-            std::move(surface),
-
-            mgg::helpers::EGLHelper{
-                config,
-                gbm,
-                raw_surface,
-                *equivalent_format,
-                shared_context
-        });
-    }
-}
-
-// auto make_surface_with_egl_context(
-//     geom::Size size,
-//     uint32_t gbm_format,
-//     mgg::helpers::GBMHelper const& gbm,
-//     mg::GLConfig const& config,
-//     EGLContext shared_context,    
-//     bool cross_gpu)
-//      -> std::tuple<mgg::GBMSurfaceUPtr, mgg::helpers::EGLHelper>
-// {
-//     auto surface = gbm.create_scanout_surface(size.width.as_uint32_t(), size.height.as_uint32_t(), gbm_format, cross_gpu);
-//     auto raw_surface = surface.get();
-
-//     try
-//     {
-//         return std::make_tuple(
-//             std::move(surface),
-//             mgg::helpers::EGLHelper{
-//                 config,
-//                 gbm,
-//                 raw_surface,
-//                 gbm_format,
-//                 shared_context
-//         });
-//     }
-//     catch (mgg::helpers::EGLHelper::NoMatchingEGLConfig const&)
-//     {
-//          // TODO: Make a generic "other-alphaness" helper
-//         gbm_format = GBM_FORMAT_ARGB8888;
-//         surface = gbm.create_scanout_surface(size.width.as_uint32_t(), size.height.as_uint32_t(), gbm_format, cross_gpu);
-//         raw_surface = surface.get();
-//         return std::make_tuple(
-//             std::move(surface),
-//             mgg::helpers::EGLHelper{
-//                 config,
-//                 gbm,
-//                 raw_surface,
-//                 gbm_format,
-//                 shared_context
-//         });
-//     }
-// }
-
 }
 
 void mgg::Display::configure_locked(

@@ -32,6 +32,10 @@
 #include "mir/executor.h"
 #include "mir/renderer/gl/gl_surface.h"
 #include "mir/graphics/display_buffer.h"
+#include "kms/egl_helper.h"
+#include "mir/graphics/drm_formats.h"
+#include "display_helpers.h"
+#include "mir/graphics/egl_error.h"
 
 #include <boost/throw_exception.hpp>
 #include <boost/exception/errinfo_errno.hpp>
@@ -57,6 +61,7 @@
 
 namespace mg  = mir::graphics;
 namespace mgg = mg::gbm;
+namespace mggh = mgg::helpers;
 namespace mgc = mg::common;
 namespace geom = mir::geometry;
 
