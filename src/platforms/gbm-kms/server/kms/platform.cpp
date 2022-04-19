@@ -114,7 +114,7 @@ auto dpy_for_gbm_device(mgg::GBMDeviceUPtr const& device) -> EGLDisplay
 
 mgg::RenderingPlatform::RenderingPlatform(
     mir::udev::Device const& device,
-    std::vector<std::shared_ptr<mg::DisplayPlatform>> const&)
+    std::vector<std::shared_ptr<mg::DisplayPlatform>> const& /*displays*/)
     : device{gbm_device_for_udev_device(device)},
       dpy{dpy_for_gbm_device(this->device)}
 {
