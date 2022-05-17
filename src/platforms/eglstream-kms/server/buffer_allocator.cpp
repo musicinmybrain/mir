@@ -36,7 +36,6 @@
 #include "mir/raii.h"
 #include "mir/wayland/wayland_base.h"
 #include "mir/renderer/gl/gl_surface.h"
-#include "mir/graphics/display_buffer.h"
 
 #define MIR_LOG_COMPONENT "platform-eglstream-kms"
 #include "mir/log.h"

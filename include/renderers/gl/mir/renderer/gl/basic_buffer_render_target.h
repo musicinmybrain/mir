@@ -31,17 +31,16 @@ namespace gl
 class Context;
 
 /// Not threadsafe, do not use concurrently
-class BasicBufferRenderTarget: public BufferRenderTarget
+class BasicBufferOutputSurface: public BufferOutputSurface
 {
 public:
-    BasicBufferRenderTarget(std::shared_ptr<Context> const& ctx);
+    BasicBufferOutputSurface(std::shared_ptr<Context> const& ctx);
 
     void set_buffer(
         std::shared_ptr<software::WriteMappableBuffer> const& buffer,
         geometry::Size const& size) override;
 
     void make_current() override;
-    void release_current() override;
     void swap_buffers() override;
     void bind() override;
 

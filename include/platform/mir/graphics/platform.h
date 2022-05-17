@@ -53,7 +53,6 @@ class Buffer;
 class Framebuffer;
 class Display;
 class DisplayBuffer;
-class DisplayPlatform;
 class DisplayReport;
 class DisplayConfigurationPolicy;
 class GraphicBufferAllocator;

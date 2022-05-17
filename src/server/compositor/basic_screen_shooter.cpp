@@ -33,7 +33,7 @@ namespace geom = mir::geometry;
 mc::BasicScreenShooter::Self::Self(
     std::shared_ptr<Scene> const& scene,
     std::shared_ptr<time::Clock> const& clock,
-    std::unique_ptr<mrg::BufferRenderTarget>&& render_target,
+    std::unique_ptr<mrg::BufferOutputSurface>&& render_target,
     std::unique_ptr<mr::Renderer>&& renderer)
     : scene{scene},
       render_target{std::move(render_target)},
@@ -66,7 +66,6 @@ auto mc::BasicScreenShooter::Self::render(
     renderer->set_viewport(area);
     renderer->render(renderable_list);
 
-    render_target->release_current();
     renderable_list.clear();
 
     return captured_time;
@@ -76,7 +75,7 @@ mc::BasicScreenShooter::BasicScreenShooter(
     std::shared_ptr<Scene> const& scene,
     std::shared_ptr<time::Clock> const& clock,
     Executor& executor,
-    std::unique_ptr<mrg::BufferRenderTarget>&& render_target,
+    std::unique_ptr<mrg::BufferOutputSurface>&& render_target,
     std::unique_ptr<mr::Renderer>&& renderer)
     : self{std::make_shared<Self>(scene, clock, std::move(render_target), std::move(renderer))},
       executor{executor}

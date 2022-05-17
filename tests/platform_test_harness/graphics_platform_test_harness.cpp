@@ -387,11 +387,27 @@ void basic_software_buffer_drawing(
         display,
         [platform, &renderers, &factory, &min_height, &min_width](mg::DisplayBuffer& db)
         {
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> Stashed changes
             auto const render_target = dynamic_cast<mir::renderer::gl::RenderTarget*>(db.native_display_buffer());
             if (!render_target)
             {
                 BOOST_THROW_EXCEPTION(std::logic_error("DisplayBuffer does not support GL rendering"));
             }
+<<<<<<< Updated upstream
+=======
+            renderers.push_back(factory.create_renderer_for(*render_target));
+            renderers.back()->set_viewport(db.view_area());
+=======
+            renderers.push_back(factory.create_renderer_for(db, platform));
+>>>>>>> 905b866655 (REBASE: Add, and use, GLRenderingProvider)
+            min_height = std::min(min_height, db.view_area().bottom().as_int());
+            min_width = std::min(min_width, db.view_area().right().as_int());
+=======
+>>>>>>> Stashed changes
             if (auto gl_interface = mg::RenderingPlatform::acquire_interface<mg::GLRenderingProvider>(platform))
             {
                 auto output_surface = gl_interface->surface_for_output(db);
@@ -403,6 +419,10 @@ void basic_software_buffer_drawing(
             {
                 BOOST_THROW_EXCEPTION((std::runtime_error{"Platform does not support GL"}));
             }
+<<<<<<< Updated upstream
+=======
+>>>>>>> a9434ee4bf (platform/renderer: Add gl::OutputSurface)
+>>>>>>> Stashed changes
         });
 
     class DummyRenderable : public mg::Renderable

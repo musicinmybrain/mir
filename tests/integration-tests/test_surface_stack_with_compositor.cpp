@@ -35,7 +35,6 @@
 #include "mir/test/doubles/mock_gl_buffer.h"
 #include "mir/test/doubles/mock_output_surface.h"
 #include "mir/test/doubles/stub_gl_rendering_provider.h"
-#include "mir_test_framework/stub_server_platform_factory.h"
 
 #include <condition_variable>
 #include <mutex>
@@ -45,7 +44,6 @@
 namespace ms = mir::scene;
 namespace mt = mir::test;
 namespace mtd = mir::test::doubles;
-namespace mtf = mir_test_framework;
 namespace mr = mir::report;
 namespace mc = mir::compositor;
 namespace mg = mir::graphics;

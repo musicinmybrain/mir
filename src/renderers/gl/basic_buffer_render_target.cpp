@@ -26,7 +26,7 @@ namespace mg = mir::graphics;
 namespace mrg = mir::renderer::gl;
 namespace mrs = mir::renderer::software;
 
-mrg::BasicBufferRenderTarget::Framebuffer::Framebuffer(geometry::Size const& size)
+mrg::BasicBufferOutputSurface::Framebuffer::Framebuffer(geometry::Size const& size)
     : size{size}
 {
     glGenRenderbuffers(1, &colour_buffer);
@@ -75,13 +75,13 @@ mrg::BasicBufferRenderTarget::Framebuffer::Framebuffer(geometry::Size const& siz
     glViewport(0, 0, size.width.as_int(), size.height.as_int());
 }
 
-mrg::BasicBufferRenderTarget::Framebuffer::~Framebuffer()
+mrg::BasicBufferOutputSurface::Framebuffer::~Framebuffer()
 {
     glDeleteFramebuffers(1, &fbo);
     glDeleteRenderbuffers(1, &colour_buffer);
 }
 
-void mrg::BasicBufferRenderTarget::Framebuffer::copy_to(software::WriteMappableBuffer& buffer)
+void mrg::BasicBufferOutputSurface::Framebuffer::copy_to(software::WriteMappableBuffer& buffer)
 {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     auto mapping = buffer.map_writeable();
@@ -103,17 +103,17 @@ void mrg::BasicBufferRenderTarget::Framebuffer::copy_to(software::WriteMappableB
         GL_BGRA_EXT, GL_UNSIGNED_BYTE, mapping->data());
 }
 
-void mrg::BasicBufferRenderTarget::Framebuffer::bind()
+void mrg::BasicBufferOutputSurface::Framebuffer::bind()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 }
 
-mrg::BasicBufferRenderTarget::BasicBufferRenderTarget(std::shared_ptr<Context> const& ctx)
+mrg::BasicBufferOutputSurface::BasicBufferOutputSurface(std::shared_ptr<Context> const& ctx)
     : ctx{ctx}
 {
 }
 
-void mrg::BasicBufferRenderTarget::set_buffer(
+void mrg::BasicBufferOutputSurface::set_buffer(
     std::shared_ptr<software::WriteMappableBuffer> const& buffer,
     geometry::Size const& size)
 {
@@ -126,17 +126,12 @@ void mrg::BasicBufferRenderTarget::set_buffer(
     framebuffer.emplace(size);
 }
 
-void mrg::BasicBufferRenderTarget::make_current()
+void mrg::BasicBufferOutputSurface::make_current()
 {
     ctx->make_current();
 }
 
-void mrg::BasicBufferRenderTarget::release_current()
-{
-    ctx->release_current();
-}
-
-void mrg::BasicBufferRenderTarget::swap_buffers()
+void mrg::BasicBufferOutputSurface::swap_buffers()
 {
     if (!framebuffer || !buffer)
     {
@@ -145,7 +140,7 @@ void mrg::BasicBufferRenderTarget::swap_buffers()
     framebuffer->copy_to(*buffer);
 }
 
-void mrg::BasicBufferRenderTarget::bind()
+void mrg::BasicBufferOutputSurface::bind()
 {
     if (!framebuffer)
     {

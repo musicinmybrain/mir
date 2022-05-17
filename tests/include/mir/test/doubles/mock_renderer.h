@@ -32,7 +32,7 @@ struct MockRenderer : public renderer::Renderer
 {
     MOCK_METHOD1(set_viewport, void(geometry::Rectangle const&));
     MOCK_METHOD1(set_output_transform, void(glm::mat2 const&));
-    MOCK_CONST_METHOD1(render, std::unique_ptr<graphics::Framebuffer>(graphics::RenderableList const&));
+    MOCK_METHOD(std::unique_ptr<graphics::Framebuffer>, render, (graphics::RenderableList const&), (const override));
     MOCK_METHOD0(suspend, void());
 
     ~MockRenderer() noexcept {}

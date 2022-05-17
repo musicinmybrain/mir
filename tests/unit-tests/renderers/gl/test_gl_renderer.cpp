@@ -286,7 +286,7 @@ TEST_F(GLRenderer, sets_scissor_test)
     EXPECT_CALL(mock_gl, glScissor(-1, 2, 2, 3));
 
     mrg::Renderer renderer(gl_platform, make_output_surface());
-    renderer.set_viewport(mir::geometry::Rectangle{{0, 0}, {2, 3}});
+    renderer.set_viewport({{1, 2}, {3, 4}});
 
     renderer.render(renderable_list);
 }

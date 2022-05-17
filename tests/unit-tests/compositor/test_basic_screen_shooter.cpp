@@ -43,7 +43,7 @@ using namespace std::chrono_literals;
 namespace
 {
 
-class MockBufferRenderTarget: public mrg::BufferRenderTarget
+class MockBufferRenderTarget: public mrg::BufferOutputSurface
 {
 public:
     MOCK_METHOD(void, set_buffer, (
@@ -89,7 +89,7 @@ struct BasicScreenShooter : Test
         mt::fake_shared(scene),
         mt::fake_shared(clock),
         executor,
-        std::unique_ptr<mrg::BufferRenderTarget>{&render_target},
+        std::unique_ptr<mrg::BufferOutputSurface>{&render_target},
         std::unique_ptr<mr::Renderer>{&renderer}};
     mtd::StubBuffer buffer;
     geom::Rectangle const viewport_rect{{20, 30}, {40, 50}};
