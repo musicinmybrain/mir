@@ -133,6 +133,20 @@ auto select_platforms_from_list(std::string const& selection, std::vector<std::s
 
     return selected_modules;
 }
+
+auto driver_for_device(mir::udev::Device const& device) -> std::string
+{
+    if (auto driver = device.driver())
+    {
+        return driver;
+    }
+    if (auto parent = device.parent())
+    {
+        // Recurse up the device representation stack until we hit something with a driver
+        return driver_for_device(*parent); 
+    }
+    return "(unknown driver)";
+}
 }
 
 auto mir::DefaultServerConfiguration::the_display_platforms() -> std::vector<std::shared_ptr<graphics::DisplayPlatform>> const&
@@ -201,13 +215,28 @@ auto mir::DefaultServerConfiguration::the_display_platforms() -> std::vector<std
                 auto describe_module = platform->load_function<mg::DescribeModule>(
                     "describe_graphics_module",
                     MIR_SERVER_GRAPHICS_PLATFORM_VERSION);
-
+                
                 auto description = describe_module();
-                mir::log_info("Selected display driver: %s (version %d.%d.%d)",
-                              description->name,
-                              description->major_version,
-                              description->minor_version,
-                              description->micro_version);
+                if (!device.device)
+                {
+                    mir::log_info(
+                        "Selected display driver: %s (version %d.%d.%d) for platform",
+                        description->name,
+                        description->major_version,
+                        description->minor_version,
+                        description->micro_version);
+                }
+                else
+                {
+                    mir::log_info(
+                        "Selected display driver: %s (version %d.%d.%d) for device (%s: %s)",
+                        description->name,
+                        description->major_version,
+                        description->minor_version,
+                        description->micro_version,
+                        driver_for_device(*device.device).c_str(),
+                        device.device->devnode());
+                }
 
                 // TODO: Do we want to be able to continue on partial failure here?
                 display_platforms.push_back(
@@ -306,11 +335,26 @@ auto mir::DefaultServerConfiguration::the_rendering_platforms() ->
                     MIR_SERVER_GRAPHICS_PLATFORM_VERSION);
 
                 auto description = describe_module();
-                mir::log_info("Selected rendering driver: %s (version %d.%d.%d)",
-                              description->name,
-                              description->major_version,
-                              description->minor_version,
-                              description->micro_version);
+                if (!device.device)
+                {
+                    mir::log_info(
+                        "Selected rendering driver: %s (version %d.%d.%d) for platform",
+                        description->name,
+                        description->major_version,
+                        description->minor_version,
+                        description->micro_version);
+                }
+                else
+                {
+                    mir::log_info(
+                        "Selected rendering driver: %s (version %d.%d.%d) for device (%s: %s)",
+                        description->name,
+                        description->major_version,
+                        description->minor_version,
+                        description->micro_version,
+                        driver_for_device(*device.device).c_str(),
+                        device.device->devnode());
+                }
 
                 // TODO: Do we want to be able to continue on partial failure here?
                 rendering_platforms.push_back(
