@@ -29,10 +29,14 @@ mgg::FBHandle::FBHandle(int drm_fd, uint32_t fb_id)
 mgg::FBHandle::~FBHandle()
 {
     // TODO: Some sort of logging on failure?
-    drmModeRmFB(drm_fd, fb_id);
 }
 
 auto mgg::FBHandle::get_drm_fb_id() const -> uint32_t
+{
+    return fb_id;
+}
+
+mgg::FBHandle::operator uint32_t() const
 {
     return fb_id;
 }

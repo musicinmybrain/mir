@@ -21,6 +21,7 @@
 namespace mir::graphics
 {
 class GLRenderingProvider;
+class GLConfig;
 }
 
 namespace mir_test_framework
@@ -29,15 +30,18 @@ class PassthroughTracker;
 struct HeadlessDisplayBufferCompositorFactory : mir::compositor::DisplayBufferCompositorFactory
 {
     HeadlessDisplayBufferCompositorFactory(
-        std::shared_ptr<mir::graphics::GLRenderingProvider> render_platform);
+        std::shared_ptr<mir::graphics::GLRenderingProvider> render_platform,
+        std::shared_ptr<mir::graphics::GLConfig> gl_config);
     HeadlessDisplayBufferCompositorFactory(
         std::shared_ptr<mir::graphics::GLRenderingProvider> render_platform,
+        std::shared_ptr<mir::graphics::GLConfig> gl_config,
         std::shared_ptr<PassthroughTracker> const& tracker);
 
     std::unique_ptr<mir::compositor::DisplayBufferCompositor> create_compositor_for(
         mir::graphics::DisplayBuffer& display_buffer) override;
 private:
     std::shared_ptr<mir::graphics::GLRenderingProvider> const render_platform;
+    std::shared_ptr<mir::graphics::GLConfig> const gl_config;
     std::shared_ptr<PassthroughTracker> const tracker;
 };
 }

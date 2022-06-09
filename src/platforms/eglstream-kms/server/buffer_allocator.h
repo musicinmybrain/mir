@@ -101,7 +101,7 @@ public:
 
     auto make_framebuffer_provider(DisplayBuffer const& target) -> std::unique_ptr<FramebufferProvider> override;
 
-    auto surface_for_output(DisplayBuffer& db) -> std::unique_ptr<gl::OutputSurface> override;
+    auto surface_for_output(DisplayBuffer& db, GLConfig const& gl_config) -> std::unique_ptr<gl::OutputSurface> override;
 private:
     std::unique_ptr<renderer::gl::Context> const ctx;
 };

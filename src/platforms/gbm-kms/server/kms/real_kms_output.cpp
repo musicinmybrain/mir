@@ -26,6 +26,7 @@
 #include <boost/throw_exception.hpp>
 #include <system_error>
 #include <xf86drm.h>
+#include <xf86drmMode.h>
 
 namespace mg = mir::graphics;
 namespace mgg = mg::gbm;
@@ -136,7 +137,7 @@ bool mgg::RealKMSOutput::set_crtc(FBHandle const& fb)
     }
 
     auto ret = drmModeSetCrtc(drm_fd_, current_crtc->crtc_id,
-                              fb.get_drm_fb_id(), fb_offset.dx.as_int(), fb_offset.dy.as_int(),
+                              fb, fb_offset.dx.as_int(), fb_offset.dy.as_int(),
                               &connector->connector_id, 1,
                               &connector->modes[mode_index]);
     if (ret)
@@ -208,7 +209,7 @@ bool mgg::RealKMSOutput::schedule_page_flip(FBHandle const& fb)
     }
     return page_flipper->schedule_flip(
         current_crtc->crtc_id,
-        fb.get_drm_fb_id(),
+        fb,
         connector->connector_id);
 }
 
@@ -590,66 +591,9 @@ void mgg::RealKMSOutput::update_from_hardware_state(
     output.edid = edid;
 }
 
-namespace
+auto mgg::RealKMSOutput::fb_for(gbm_bo*) const -> std::shared_ptr<FBHandle const>
 {
-void bo_user_data_destroy(gbm_bo* /*bo*/, void *data)
-{
-    auto bufobj = static_cast<std::shared_ptr<mgg::FBHandle const>*>(data);
-    delete bufobj;
-}
-}
-
-auto mgg::RealKMSOutput::FBRegistry::lookup_or_create(int const drm_fd, gbm_bo* bo)
-    -> std::shared_ptr<FBHandle const>
-{
-    if (!bo)
-        return nullptr;
-
-    /*
-     * Check if we have already set up this gbm_bo (the gbm-kms implementation is
-     * free to reuse gbm_bos). If so, return the associated FBHandle.
-     */
-    auto bufobj = static_cast<std::shared_ptr<FBHandle const>*>(gbm_bo_get_user_data(bo));
-    if (bufobj)
-    {
-        return *bufobj;
-    }
-
-    uint32_t fb_id{0};
-    uint32_t handles[4] = {gbm_bo_get_handle(bo).u32, 0, 0, 0};
-    uint32_t strides[4] = {gbm_bo_get_stride(bo), 0, 0, 0};
-    uint32_t offsets[4] = {0, 0, 0, 0};
-
-    auto format = gbm_bo_get_format(bo);
-    /*
-     * Mir might use the old GBM_BO_ enum formats, but KMS and the rest of
-     * the world need fourcc formats, so convert...
-     */
-    if (format == GBM_BO_FORMAT_XRGB8888)
-        format = GBM_FORMAT_XRGB8888;
-    else if (format == GBM_BO_FORMAT_ARGB8888)
-        format = GBM_FORMAT_ARGB8888;
-
-    auto const width = gbm_bo_get_width(bo);
-    auto const height = gbm_bo_get_height(bo);
-
-    /* Create a KMS FB object with the gbm_bo attached to it. */
-    auto ret = drmModeAddFB2(drm_fd, width, height, format,
-                             handles, strides, offsets, &fb_id, 0);
-    if (ret)
-        return nullptr;
-
-    /* Create a FBHandle and associate it with the gbm_bo */
-
-    bufobj = new std::shared_ptr<FBHandle const>(new FBHandle{drm_fd, fb_id});
-    gbm_bo_set_user_data(bo, bufobj, bo_user_data_destroy);
-
-    return *bufobj;
-}
-
-auto mgg::RealKMSOutput::fb_for(gbm_bo* bo) const -> std::shared_ptr<FBHandle const>
-{
-    return framebuffers.lookup_or_create(drm_fd(), bo);
+    return nullptr;
 }
 
 struct mgg::RealKMSOutput::FBRegistry::DMABufFB
@@ -776,7 +720,30 @@ auto mgg::RealKMSOutput::FBRegistry::lookup_or_create(
         return nullptr;
     }
 
-    auto fb_handle = std::make_shared<FBHandle>(drm_fd, drm_fb_id);
+    class OwnedFBHandle : public FBHandle
+    {
+    public:
+        OwnedFBHandle(int drm_fd, uint32_t fb_id)
+            : drm_fd{std::move(drm_fd)},
+              fb_id{fb_id}
+        {
+        }
+        
+        ~OwnedFBHandle() override
+        {
+            drmModeRmFB(drm_fd, fb_id);
+        }
+        
+        operator uint32_t() const override
+        {
+            return fb_id;
+        }
+    private:
+        int const drm_fd;
+        uint32_t const fb_id;
+    };
+    
+    auto fb_handle = std::make_shared<OwnedFBHandle>(drm_fd, drm_fb_id);
 
     if (existing_fb != dmabuf_fbs.end())
     {

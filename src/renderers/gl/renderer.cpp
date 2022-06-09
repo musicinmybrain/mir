@@ -272,16 +272,24 @@ mrg::Renderer::Program::Program(GLuint program_id)
     alpha_uniform = glGetUniformLocation(id, "alpha");
 }
 
+namespace
+{
+auto make_output_current(std::unique_ptr<mg::gl::OutputSurface> output) -> std::unique_ptr<mg::gl::OutputSurface>
+{
+    output->make_current();
+    return output;
+}
+}
+
 mrg::Renderer::Renderer(
     std::shared_ptr<graphics::GLRenderingProvider> gl_interface,
     std::unique_ptr<graphics::gl::OutputSurface> output)
-    : output_surface{std::move(output)},
+    : output_surface{make_output_current(std::move(output))},
       clear_color{0.5f, 0.5f, 0.5f, 1.0f},
       program_factory{std::make_unique<ProgramFactory>()},
       display_transform(1),
       gl_interface{std::move(gl_interface)}
 {
-    output_surface->make_current();
     eglBindAPI(EGL_OPENGL_ES_API);
     EGLDisplay disp = eglGetCurrentDisplay();
     if (disp != EGL_NO_DISPLAY)

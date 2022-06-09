@@ -19,7 +19,10 @@
 
 #include <boost/program_options/options_description.hpp>
 #include <any>
+#include <span>
+#include <gbm.h>
 
+#include "mir/graphics/drm_formats.h"
 #include "mir/module_properties.h"
 #include "mir/module_deleter.h"
 #include "mir/udev/wrapper.h"
@@ -108,7 +111,7 @@ public:
 
     virtual auto as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture> = 0;
 
-    virtual auto surface_for_output(DisplayBuffer& db) -> std::unique_ptr<gl::OutputSurface> = 0;
+    virtual auto surface_for_output(DisplayBuffer& db, GLConfig const& config) -> std::unique_ptr<gl::OutputSurface> = 0;
 };
 
 /**
@@ -149,15 +152,13 @@ public:
      *          On failure: std::shared_ptr<Interface>{nullptr}
      */
     template<typename Interface>
-    auto acquire_interface(std::shared_ptr<GraphicBufferAllocator> const& device) -> std::shared_ptr<Interface>
+    static auto acquire_interface(std::shared_ptr<RenderingPlatform> platform) -> std::shared_ptr<Interface>
     {
         static_assert(
             std::is_convertible_v<Interface*, RendererInterfaceBase*>,
             "Can only acquire a Renderer interface; Interface must implement RendererInterfaceBase");
 
-        if (auto const base_interface = maybe_create_interface(
-            device,
-            typename Interface::Tag{}))
+        if (auto const base_interface = platform->maybe_create_interface(typename Interface::Tag{}))
         {
             if (auto const requested_interface = std::dynamic_pointer_cast<Interface>(base_interface))
             {
@@ -188,7 +189,6 @@ protected:
      *              interface that corresponds to the most-derived type of tag_type.
      */
     virtual auto maybe_create_interface(
-        std::shared_ptr<GraphicBufferAllocator> const& device,
         RendererInterfaceBase::Tag const& type_tag) -> std::shared_ptr<RendererInterfaceBase> = 0;
 };
 
@@ -250,6 +250,66 @@ public:
 
     virtual auto allocator_for_db(DisplayBuffer const& db)
         -> std::unique_ptr<Allocator> = 0;
+};
+
+class GBMDisplayProvider : public DisplayInterfaceBase
+{
+public:
+    class Tag : public DisplayInterfaceBase::Tag
+    {
+    };
+
+    /**
+     * Check if the provided UDev device is the same hardware device as this display
+     *
+     * This can be either because they point to the same device node, or because
+     * the provided device is a Rendernode associated with the display hardware
+     */
+    virtual auto is_same_device(mir::udev::Device const& render_device) const -> bool = 0;
+ 
+    /**
+     * Check if the provided DisplayBuffer is driven by this device
+     */
+    virtual auto is_same_device(DisplayBuffer const& db) const -> bool = 0;
+
+    /**
+     * Get the GBM device for this display
+     */
+    virtual auto gbm_device() const -> std::shared_ptr<struct gbm_device> = 0;
+
+   /**
+    * Formats supported for output
+    */
+    virtual auto supported_formats() const -> std::vector<DRMFormat> = 0;
+
+    /**
+     * Modifiers supported
+     */
+    virtual auto modifiers_for_format(DRMFormat format) const -> std::vector<uint64_t> = 0;
+
+    class GBMSurface
+    {
+    public:
+        GBMSurface() = default;
+        virtual ~GBMSurface() = default;
+
+        virtual operator gbm_surface*() const = 0;
+
+        /**
+         * Commit the current EGL front buffer as a KMS-displayable Framebuffer
+         *
+         * Like the underlying gbm_sufrace_lock_front_buffer GBM API, it is a this
+         * must be called after at least one call to eglSwapBuffers, and at most
+         * once per eglSwapBuffers call.
+         *
+         * The Framebuffer should not be retained; a GBMSurface has a limited number
+         * of buffers available and attempting to claim a framebuffer when no buffers
+         * are free will result in an EBUSY std::system_error being raised.
+         */
+        virtual auto claim_framebuffer() -> std::unique_ptr<Framebuffer> = 0;
+    };
+
+    virtual auto make_surface(geometry::Size size, DRMFormat format, std::span<uint64_t> modifiers) -> std::unique_ptr<GBMSurface> = 0;
 };
 
 class DmaBufBuffer;

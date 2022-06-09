@@ -62,8 +62,8 @@ class BufferAllocator:
     public graphics::GraphicBufferAllocator
 {
 public:
-    explicit BufferAllocator(Display const& output);
-
+    BufferAllocator(EGLDisplay dpy, EGLContext share_with);
+    
     std::shared_ptr<Buffer> alloc_software_buffer(geometry::Size size, MirPixelFormat) override;
     std::vector<MirPixelFormat> supported_pixel_formats() override;
 
@@ -78,9 +78,9 @@ public:
         std::shared_ptr<Executor> wayland_executor,
         std::function<void()>&& on_consumed) -> std::shared_ptr<Buffer> override;
 
-    auto shared_egl_context() -> std::shared_ptr<renderer::gl::Context>;
+    auto shared_egl_context() -> EGLContext;
 private:
-    std::shared_ptr<renderer::gl::Context> const ctx;
+    std::unique_ptr<renderer::gl::Context> const ctx;
     std::shared_ptr<common::EGLContextExecutor> const egl_delegate;
     std::shared_ptr<Executor> wayland_executor;
     std::unique_ptr<LinuxDmaBufUnstable, std::function<void(LinuxDmaBufUnstable*)>> dmabuf_extension;
@@ -91,17 +91,24 @@ private:
 class GLRenderingProvider : public graphics::GLRenderingProvider
 {
 public:
-    GLRenderingProvider(std::shared_ptr<renderer::gl::Context> ctx);
+    GLRenderingProvider(
+        udev::Device const& device,
+         std::shared_ptr<GBMDisplayProvider> associated_display,
+         EGLDisplay dpy,
+         EGLContext ctx);
 
     auto make_framebuffer_provider(DisplayBuffer const& target)
         -> std::unique_ptr<FramebufferProvider> override;
 
     auto as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture> override;
 
-    auto surface_for_output(DisplayBuffer& db) -> std::unique_ptr<gl::OutputSurface> override;
+    auto surface_for_output(DisplayBuffer& db, GLConfig const& config) -> std::unique_ptr<gl::OutputSurface> override;
 
 private:
-    std::shared_ptr<renderer::gl::Context> const ctx;
+    udev::Device const& device;
+    std::shared_ptr<GBMDisplayProvider> const bound_display;    ///< Associated Display provider (if any - null is valid)
+    EGLDisplay const dpy;
+    EGLContext const ctx;
 };
 }
 }

@@ -15,8 +15,10 @@
  */
 
 #include "buffer_allocator.h"
+#include "mir/graphics/gl_config.h"
 #include "mir/graphics/linux_dmabuf.h"
 #include "mir/anonymous_shm_file.h"
+#include "mir/graphics/platform.h"
 #include "shm_buffer.h"
 #include "display_helpers.h"
 #include "mir/graphics/egl_context_executor.h"
@@ -46,12 +48,14 @@
 #include <GLES2/gl2ext.h>
 
 #include <algorithm>
+#include <optional>
 #include <stdexcept>
 #include <system_error>
 #include <gbm.h>
 #include <cassert>
 #include <fcntl.h>
 #include <xf86drm.h>
+#include <drm_fourcc.h>
 
 #include <wayland-server.h>
 
@@ -61,46 +65,98 @@
 
 namespace mg  = mir::graphics;
 namespace mgg = mg::gbm;
-namespace mggh = mgg::helpers;
 namespace mgc = mg::common;
 namespace geom = mir::geometry;
 
 namespace
 {
-std::unique_ptr<mir::renderer::gl::Context> context_for_output(mg::Display const& output)
+
+auto make_share_only_context(EGLDisplay dpy, std::optional<EGLContext> share_with) -> EGLContext
 {
-    try
-    {
-        auto& context_source = dynamic_cast<mir::renderer::gl::ContextSource const&>(output);
+    eglBindAPI(EGL_OPENGL_ES_API);
 
-        /*
-         * We care about no part of this context's config; we will do no rendering with it.
-         * All we care is that we can allocate texture IDs and bind a texture, which is
-         * config independent.
-         *
-         * That's not *entirely* true; we also need it to be on the same device as we want
-         * to do the rendering on, and that GL must support all the extensions we care about,
-         * but since we don't yet support heterogeneous hybrid and implementing that will require
-         * broader interface changes it's a safe enough requirement for now.
-         */
-        return context_source.create_gl_context();
-    }
-    catch (std::bad_cast const& err)
+    static const EGLint context_attr[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+
+    EGLint const config_attr[] = {
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_NONE
+    };
+
+    EGLConfig cfg;
+    EGLint num_configs;
+    
+    if (eglChooseConfig(dpy, config_attr, &cfg, 1, &num_configs) != EGL_TRUE || num_configs != 1)
     {
-        std::throw_with_nested(
-            boost::enable_error_info(
-                std::runtime_error{"Output platform cannot provide a GL context"})
-                << boost::throw_function(__PRETTY_FUNCTION__)
-                << boost::throw_line(__LINE__)
-                << boost::throw_file(__FILE__));
+        BOOST_THROW_EXCEPTION((mg::egl_error("Failed to find any matching EGL config")));
     }
-}
+    
+    auto ctx = eglCreateContext(dpy, cfg, share_with.value_or(EGL_NO_CONTEXT), context_attr);
+    if (ctx == EGL_NO_CONTEXT)
+    {
+        BOOST_THROW_EXCEPTION(mg::egl_error("Failed to create EGL context"));
+    }
+    return ctx;
 }
 
-mgg::BufferAllocator::BufferAllocator(mg::Display const& output)
-    : ctx{context_for_output(output)},
+class SurfacelessEGLContext : public mir::renderer::gl::Context
+{
+public:
+    SurfacelessEGLContext(EGLDisplay dpy)
+        : dpy{dpy},
+          ctx{make_share_only_context(dpy, {})}
+    {
+    }
+    
+    SurfacelessEGLContext(EGLDisplay dpy, EGLContext share_with)
+        : dpy{dpy},
+          ctx{make_share_only_context(dpy, share_with)}
+    {
+    }
+
+    ~SurfacelessEGLContext() override
+    {
+        eglDestroyContext(dpy, ctx);
+    }
+    
+    void make_current() const override
+    {
+        if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to make context current"));
+        }
+    }
+    
+    void release_current() const override
+    {
+        if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to release current EGL context"));
+        }
+    }
+    
+    auto make_share_context() const -> std::unique_ptr<Context> override
+    {
+        return std::unique_ptr<Context>{new SurfacelessEGLContext{dpy, ctx}};
+    }
+    
+    explicit operator EGLContext() override
+    {
+        return ctx;
+    }
+private:    
+    EGLDisplay const dpy;
+    EGLContext const ctx;
+};
+}
+
+mgg::BufferAllocator::BufferAllocator(EGLDisplay dpy, EGLContext share_with)
+    : ctx{std::make_unique<SurfacelessEGLContext>(dpy, share_with)},
       egl_delegate{
-          std::make_shared<mgc::EGLContextExecutor>(context_for_output(output))},
+          std::make_shared<mgc::EGLContextExecutor>(ctx->make_share_context())},
       egl_extensions(std::make_shared<mg::EGLExtensions>())
 {
 }
@@ -260,9 +316,9 @@ auto mgg::BufferAllocator::buffer_from_shm(
         std::move(on_consumed));
 }
 
-auto mgg::BufferAllocator::shared_egl_context() -> std::shared_ptr<renderer::gl::Context>
+auto mgg::BufferAllocator::shared_egl_context() -> EGLContext
 {
-    return ctx;
+    return static_cast<EGLContext>(*ctx);
 }
 
 auto mgg::GLRenderingProvider::as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture>
@@ -313,13 +369,20 @@ class CPUCopyOutputSurface : public mg::gl::OutputSurface
 {
 public:
     CPUCopyOutputSurface(
-        std::shared_ptr<mir::renderer::gl::Context> ctx,
+        EGLDisplay dpy,
+        EGLContext ctx,
         std::unique_ptr<mg::DumbDisplayProvider::Allocator> allocator,
         geom::Size size)
         : allocator{std::move(allocator)},
-          ctx{std::move(ctx)},
+          dpy{dpy},
+          ctx{ctx},
           size{std::move(size)}
     {
+        if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to make share context current"));   
+        }
+        
         glBindRenderbuffer(GL_RENDERBUFFER, colour_buffer);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, size.width.as_int(), size.height.as_int());
 
@@ -366,7 +429,7 @@ public:
 
     void make_current() override
     {
-        ctx->make_current();
+        eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx);
     }
 
     auto commit() -> std::unique_ptr<mg::Framebuffer> override
@@ -398,22 +461,228 @@ public:
 
 private:
     std::unique_ptr<mg::DumbDisplayProvider::Allocator> const allocator;
-    std::shared_ptr<mir::renderer::gl::Context> const ctx;
+    EGLDisplay const dpy;
+    EGLContext const ctx;
     geom::Size const size;
     RenderbufferHandle const colour_buffer;
     FramebufferHandle const fbo;
 };
+
+class GBMOutputSurface : public mg::gl::OutputSurface
+{
+public:
+    GBMOutputSurface(
+        EGLDisplay dpy,
+        EGLContext share_context,
+        mg::GLConfig const& config,
+        mg::GBMDisplayProvider& display,
+        mg::DRMFormat format,
+        mir::geometry::Size size)
+        : GBMOutputSurface(
+              dpy,
+              create_renderable(dpy, share_context, format, config, display, std::move(size)))
+    {
+    }
+
+    void bind() override
+    {
+        if (!gbm_surface_has_free_buffers(*surface))
+        {
+            BOOST_THROW_EXCEPTION((std::logic_error{"Attempt to render to GBM surface before releasing previous front buffer"}));
+        }
+    }
+
+    void make_current() override
+    {
+        if (eglMakeCurrent(dpy, egl_surf, egl_surf, ctx) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to make EGL context current"));
+        }
+    }
+
+    auto commit() -> std::unique_ptr<mg::Framebuffer> override
+    {
+        if (eglSwapBuffers(dpy, egl_surf) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("eglSwapBuffers failed"));
+        }
+        return surface->claim_framebuffer();
+    }
+
+    auto layout() const -> Layout override
+    {
+        return Layout::GL;
+    }
+
+private:
+    static auto get_matching_configs(EGLDisplay dpy, EGLint const attr[]) -> std::vector<EGLConfig>
+    {
+        EGLint num_egl_configs;
+
+        // First query the number of matching configs…
+        if ((eglChooseConfig(dpy, attr, nullptr, 0, &num_egl_configs) == EGL_FALSE) ||
+            (num_egl_configs == 0))
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to enumerate any matching EGL configs"));
+        }
+
+        std::vector<EGLConfig> matching_configs(static_cast<size_t>(num_egl_configs));
+        if ((eglChooseConfig(dpy, attr, matching_configs.data(), static_cast<EGLint>(matching_configs.size()), &num_egl_configs) == EGL_FALSE) ||
+            (num_egl_configs == 0))
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to acquire matching EGL configs"));
+        }
+
+        matching_configs.resize(static_cast<size_t>(num_egl_configs));
+        return matching_configs;
+    }
+
+
+    static auto egl_config_for_format(EGLDisplay dpy, mg::GLConfig const& config, mg::DRMFormat format) -> std::optional<EGLConfig>
+    {
+        mg::DRMFormat::RGBComponentInfo const default_components = { 8, 8, 8, 0};
+
+        EGLint const config_attr[] = {
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+            EGL_RED_SIZE, static_cast<EGLint>(format.components().value_or(default_components).red_bits),
+            EGL_GREEN_SIZE, static_cast<EGLint>(format.components().value_or(default_components).green_bits),
+            EGL_BLUE_SIZE, static_cast<EGLint>(format.components().value_or(default_components).blue_bits),
+            EGL_ALPHA_SIZE, static_cast<EGLint>(format.components().value_or(default_components).alpha_bits.value_or(0)),
+            EGL_DEPTH_SIZE, config.depth_buffer_bits(),
+            EGL_STENCIL_SIZE, config.stencil_buffer_bits(),
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+            EGL_NONE
+        };
+
+        for (auto const& config : get_matching_configs(dpy, config_attr))
+        {
+            EGLint id;
+            if (eglGetConfigAttrib(dpy, config, EGL_NATIVE_VISUAL_ID, &id) == EGL_FALSE)
+            {
+                mir::log_warning(
+                    "Failed to query GBM format of EGLConfig: %s",
+                    mg::egl_category().message(eglGetError()).c_str());
+                continue;
+            }
+
+            if (id == static_cast<EGLint>(format))
+            {
+                // We've found our matching format, so we're done here.
+                return config;
+            }
+        }
+        return std::nullopt;
+    }
+
+    static auto create_renderable(
+        EGLDisplay dpy,
+        EGLContext share_context,
+        mg::DRMFormat format,
+        mg::GLConfig const& config,
+        mg::GBMDisplayProvider& display,
+        mir::geometry::Size size)
+         -> std::tuple<std::unique_ptr<mg::GBMDisplayProvider::GBMSurface>, EGLContext, EGLSurface>
+    {
+        mg::EGLExtensions::PlatformBaseEXT egl_ext;
+
+        auto const [egl_cfg, resolved_format] =
+            [&]() -> std::pair<EGLConfig, mg::DRMFormat>
+            {
+                if (auto eglconfig = egl_config_for_format(dpy, config, format))
+                {
+                    return std::make_pair(eglconfig.value(), format);
+                }
+
+                auto alternate_format =
+                    [&]() -> std::optional<mg::DRMFormat>
+                    {
+                        if (format.has_alpha())
+                        {
+                            return format.opaque_equivalent();
+                        }
+                        return format.alpha_equivalent();
+                    }();
+
+                if (alternate_format)
+                {
+                    if (auto eglconfig = egl_config_for_format(dpy, config, *alternate_format))
+                    {
+                        return std::make_pair(eglconfig.value(), *alternate_format);
+                    }
+                }
+
+                BOOST_THROW_EXCEPTION((
+                    std::runtime_error{
+                        std::string{"Failed to find EGL config matching DRM format: "} +
+                        format.name()}));
+            }();
+
+        auto modifiers = display.modifiers_for_format(resolved_format);
+
+        auto surf = display.make_surface(size, resolved_format, modifiers);
+
+        auto egl_surf = egl_ext.eglCreatePlatformWindowSurface(
+            dpy,
+            egl_cfg,
+            *surf,
+            nullptr);
+
+        if (egl_surf == EGL_NO_SURFACE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to create EGL window surface"));
+        }
+
+
+        static const EGLint context_attr[] = {
+            EGL_CONTEXT_CLIENT_VERSION, 2,
+            EGL_NONE
+        };
+
+        auto egl_ctx = eglCreateContext(dpy, egl_cfg, share_context, context_attr);
+        if (egl_ctx == EGL_NO_CONTEXT)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to create EGL context"));
+        }
+
+
+        return std::make_tuple(std::move(surf), egl_ctx, egl_surf);
+    }
+
+    GBMOutputSurface(
+        EGLDisplay dpy,
+        std::tuple<std::unique_ptr<mg::GBMDisplayProvider::GBMSurface>, EGLContext, EGLSurface> renderables)
+        : surface{std::move(std::get<0>(renderables))},
+          egl_surf{std::get<2>(renderables)},
+          dpy{dpy},
+          ctx{std::get<1>(renderables)}
+    {
+    }
+
+    std::unique_ptr<mg::GBMDisplayProvider::GBMSurface> const surface;
+    EGLSurface const egl_surf;
+    EGLDisplay const dpy;
+    EGLContext const ctx;
+};
 }
 
-auto mgg::GLRenderingProvider::surface_for_output(DisplayBuffer& db)
+auto mgg::GLRenderingProvider::surface_for_output(DisplayBuffer& db, GLConfig const& config)
     -> std::unique_ptr<gl::OutputSurface>
 {
+    if (bound_display && bound_display->is_same_device(db))
+    {
+        return std::make_unique<GBMOutputSurface>(
+            dpy,
+            ctx,
+            config,
+            *bound_display,
+            DRMFormat{DRM_FORMAT_XRGB8888},
+            db.view_area().size);
+    }
     auto dumb_display = DisplayPlatform::acquire_interface<DumbDisplayProvider>(db.owner());
-
-    auto fb_context = ctx->make_share_context();
-    fb_context->make_current();
+    
     return std::make_unique<CPUCopyOutputSurface>(
-        std::move(fb_context),
+        dpy,
+        ctx,
         dumb_display->allocator_for_db(db),
         db.view_area().size);
 }
@@ -435,7 +704,14 @@ auto mgg::GLRenderingProvider::make_framebuffer_provider(DisplayBuffer const& /*
     return std::make_unique<NullFramebufferProvider>();
 }
 
-mgg::GLRenderingProvider::GLRenderingProvider(std::shared_ptr<renderer::gl::Context> ctx)
-    : ctx{std::move(ctx)}
+mgg::GLRenderingProvider::GLRenderingProvider(
+    udev::Device const& device,
+    std::shared_ptr<mg::GBMDisplayProvider> associated_display,
+    EGLDisplay dpy,
+    EGLContext ctx)
+    : device{device},
+      bound_display{std::move(associated_display)},
+      dpy{dpy},
+      ctx{ctx}
 {
 }

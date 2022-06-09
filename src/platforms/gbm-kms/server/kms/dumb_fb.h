@@ -34,6 +34,8 @@ public:
 
     auto map_writeable() -> std::unique_ptr<mir::renderer::software::Mapping<unsigned char>> override;
 
+    operator uint32_t() const override;
+    
     DumbFB(DumbFB const&) = delete;
     DumbFB& operator=(DumbFB const&) = delete;
 private:
@@ -43,6 +45,7 @@ private:
     static auto fb_id_for_buffer(mir::Fd const& drm_fd, bool supports_modifiers, DumbBuffer const& buf) -> uint32_t;
 
     mir::Fd const drm_fd;
+    uint32_t const fb_id;
     std::unique_ptr<DumbBuffer> const buffer;
 };
 

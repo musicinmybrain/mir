@@ -65,12 +65,10 @@ class Display : public graphics::Display
 public:
     Display(
         std::shared_ptr<DisplayPlatform> parent,
-        std::vector<std::shared_ptr<helpers::DRMHelper>> const& drm,
-        std::shared_ptr<helpers::GBMHelper> const& gbm,
+        mir::Fd drm_fd,
         std::shared_ptr<ConsoleServices> const& vt,
         BypassOption bypass_option,
         std::shared_ptr<DisplayConfigurationPolicy> const& initial_conf_policy,
-        std::shared_ptr<GLConfig> const& gl_config,
         std::shared_ptr<DisplayReport> const& listener);
     ~Display();
 
@@ -96,8 +94,6 @@ public:
 
     std::shared_ptr<graphics::Cursor> create_hardware_cursor() override;
 
-    std::unique_ptr<renderer::gl::Context> create_gl_context() const override;
-
     Frame last_frame_on(unsigned output_id) const override;
 
 private:
@@ -105,14 +101,12 @@ private:
 
     std::shared_ptr<DisplayPlatform> const owner;
     mutable std::mutex configuration_mutex;
-    std::vector<std::shared_ptr<helpers::DRMHelper>> const drm;
-    std::shared_ptr<helpers::GBMHelper> const gbm;
+    mir::Fd const drm_fd;
     std::shared_ptr<ConsoleServices> const vt;
     std::shared_ptr<DisplayReport> const listener;
     mir::udev::Monitor monitor;
-    helpers::EGLHelper shared_egl;
-    std::vector<std::unique_ptr<DisplayBuffer>> display_buffers;
     std::shared_ptr<KMSOutputContainer> const output_container;
+    std::vector<std::unique_ptr<DisplayBuffer>> display_buffers;
     mutable RealKMSDisplayConfiguration current_display_configuration;
     mutable std::atomic<bool> dirty_configuration;
 
@@ -122,7 +116,6 @@ private:
 
     BypassOption bypass_option;
     std::weak_ptr<Cursor> cursor;
-    std::shared_ptr<GLConfig> const gl_config;
 };
 
 class DumbDisplayProvider : public graphics::DumbDisplayProvider
@@ -132,6 +125,28 @@ public:
 
     auto allocator_for_db(graphics::DisplayBuffer const& db)
         -> std::unique_ptr<graphics::DumbDisplayProvider::Allocator> override;
+};
+
+class GBMDisplayProvider : public graphics::GBMDisplayProvider
+{
+public:
+    GBMDisplayProvider(mir::Fd drm_fd, DisplayPlatform const* parent);
+    
+    auto is_same_device(mir::udev::Device const& render_device) const -> bool override;
+    
+    auto is_same_device(graphics::DisplayBuffer const& db) const -> bool override;
+    
+    auto gbm_device() const -> std::shared_ptr<struct gbm_device> override;
+
+    auto supported_formats() const -> std::vector<DRMFormat> override;
+    
+    auto modifiers_for_format(DRMFormat format) const -> std::vector<uint64_t> override;
+    
+    auto make_surface(geometry::Size size, DRMFormat format, std::span<uint64_t> modifier) -> std::unique_ptr<GBMSurface> override;    
+private:
+    mir::Fd const fd;
+    std::shared_ptr<struct gbm_device> const gbm;
+    DisplayPlatform const* const parent;
 };
 }
 }

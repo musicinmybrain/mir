@@ -31,16 +31,20 @@ namespace mc = mir::compositor;
 namespace geom = mir::geometry;
 
 mtf::HeadlessDisplayBufferCompositorFactory::HeadlessDisplayBufferCompositorFactory(
-    std::shared_ptr<mg::GLRenderingProvider> render_platform)
+    std::shared_ptr<mg::GLRenderingProvider> render_platform,
+    std::shared_ptr<mg::GLConfig> gl_config)
     : render_platform{std::move(render_platform)},
+      gl_config{std::move(gl_config)},
       tracker(nullptr)
 {
 }
 
 mtf::HeadlessDisplayBufferCompositorFactory::HeadlessDisplayBufferCompositorFactory(
     std::shared_ptr<mg::GLRenderingProvider> render_platform,
+    std::shared_ptr<mg::GLConfig> gl_config,
     std::shared_ptr<PassthroughTracker> const& tracker)
     : render_platform{std::move(render_platform)},
+      gl_config{std::move(gl_config)},
       tracker(tracker)
 {
 }
@@ -115,6 +119,6 @@ mtf::HeadlessDisplayBufferCompositorFactory::create_compositor_for(mg::DisplayBu
         std::shared_ptr<mg::GLRenderingProvider> const render_platform;
         std::shared_ptr<PassthroughTracker> const tracker;
     };
-    auto output_surface = render_platform->surface_for_output(db);
+    auto output_surface = render_platform->surface_for_output(db, *gl_config);
     return std::make_unique<HeadlessDBC>(db, std::move(output_surface), render_platform, tracker);
 }

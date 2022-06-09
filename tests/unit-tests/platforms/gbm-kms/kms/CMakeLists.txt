@@ -2,7 +2,7 @@ mir_add_wrapped_executable(mir_unit_tests_gbm-kms NOINSTALL
   ${CMAKE_CURRENT_SOURCE_DIR}/test_buffer_allocator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test_platform.cpp
 #  ${CMAKE_CURRENT_SOURCE_DIR}/test_graphics_platform.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test_display.cpp
+#  ${CMAKE_CURRENT_SOURCE_DIR}/test_display.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test_display_generic.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test_display_buffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test_display_multi_monitor.cpp
@@ -44,6 +44,7 @@ target_link_libraries(
   server_platform_common
 
   ${DRM_LDFLAGS} ${DRM_LIBRARIES}
+  ${GBM_LDFLAGS} ${GBM_LIBRARIES}
 )
 
 if (MIR_RUN_UNIT_TESTS)

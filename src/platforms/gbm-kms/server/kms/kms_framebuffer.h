@@ -30,16 +30,11 @@ namespace gbm
 class FBHandle : public Framebuffer
 {
 public:
-    FBHandle(int drm_fd, uint32_t fb_id);
-
-    ~FBHandle() override;
-
-    auto get_drm_fb_id() const -> uint32_t;
-
-private:
-    int const drm_fd;
-    uint32_t const fb_id;
+    virtual ~FBHandle() = default;
+    
+    virtual operator uint32_t() const = 0;
 };
+
 }
 }
 }

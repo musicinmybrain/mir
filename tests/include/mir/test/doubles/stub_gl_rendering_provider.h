@@ -46,7 +46,9 @@ public:
         return tex_buf;
     }
 
-    auto surface_for_output(graphics::DisplayBuffer&) -> std::unique_ptr<graphics::gl::OutputSurface> override
+    auto surface_for_output(
+        graphics::DisplayBuffer&,
+        graphics::GLConfig const&) -> std::unique_ptr<graphics::gl::OutputSurface> override
     {
         return std::make_unique<testing::NiceMock<MockOutputSurface>>();
     }

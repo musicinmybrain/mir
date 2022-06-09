@@ -701,7 +701,9 @@ auto mir::graphics::eglstream::GLRenderingProvider::as_texture(std::shared_ptr<B
     return std::dynamic_pointer_cast<gl::Texture>(std::move(buffer));
 }
 
-auto mge::GLRenderingProvider::surface_for_output(mg::DisplayBuffer& db) -> std::unique_ptr<gl::OutputSurface>
+auto mge::GLRenderingProvider::surface_for_output(
+    mg::DisplayBuffer& db,
+    mg::GLConfig const&) -> std::unique_ptr<gl::OutputSurface>
 {
     auto dumb_display = DisplayPlatform::acquire_interface<DumbDisplayProvider>(db.owner());
 

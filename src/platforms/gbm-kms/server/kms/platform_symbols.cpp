@@ -53,7 +53,7 @@ char const* bypass_option_name{"bypass"};
 }
 
 mir::UniqueModulePtr<mg::DisplayPlatform> create_display_platform(
-    mg::SupportedDevice const& /*device*/,
+    mg::SupportedDevice const& device,
     std::shared_ptr<mo::Option> const& options,
     std::shared_ptr<mir::EmergencyCleanupRegistry> const& emergency_cleanup_registry,
     std::shared_ptr<mir::ConsoleServices> const& console,
@@ -71,10 +71,8 @@ mir::UniqueModulePtr<mg::DisplayPlatform> create_display_platform(
     if (!options->get<bool>(bypass_option_name))
         bypass_option = mgg::BypassOption::prohibited;
 
-    auto quirks = std::make_unique<mgg::Quirks>(*options);
-
     return mir::make_module_ptr<mgg::Platform>(
-        report, console, *emergency_cleanup_registry, bypass_option, std::move(quirks));
+        *device.device, report, console, *emergency_cleanup_registry, bypass_option);
 }
 
 auto create_rendering_platform(

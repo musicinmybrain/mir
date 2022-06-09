@@ -21,6 +21,7 @@
 #include "mir/renderer/gl/render_target.h"
 #include "mir/graphics/platform.h"
 #include "mir/renderer/gl/gl_surface.h"
+#include "mir/graphics/gl_config.h"
 
 #include "default_display_buffer_compositor.h"
 
@@ -31,9 +32,11 @@ namespace mg = mir::graphics;
 
 mc::DefaultDisplayBufferCompositorFactory::DefaultDisplayBufferCompositorFactory(
     std::shared_ptr<mg::GLRenderingProvider> render_platform,
+    std::shared_ptr<mg::GLConfig> gl_config,
     std::shared_ptr<mir::renderer::RendererFactory> const& renderer_factory,
     std::shared_ptr<mc::CompositorReport> const& report) :
         allocator{std::move(render_platform)},
+        gl_config{std::move(gl_config)},
         renderer_factory{renderer_factory},
         report{report}
 {
@@ -52,7 +55,7 @@ mc::DefaultDisplayBufferCompositorFactory::create_compositor_for(
      * GL surface could be the common case, and not allocating it would save a
      * potentially-significant amount of GPU memory.
      */
-    auto output_surface = allocator->surface_for_output(display_buffer);
+    auto output_surface = allocator->surface_for_output(display_buffer, *gl_config);
     auto renderer = renderer_factory->create_renderer_for(std::move(output_surface), allocator);
     renderer->set_viewport(display_buffer.view_area());
     return std::make_unique<DefaultDisplayBufferCompositor>(

@@ -227,14 +227,17 @@ mgg::DumbFB::DumbFB(mir::Fd const& drm_fd, bool supports_modifiers, mir::geometr
 {
 }
 
-mgg::DumbFB::~DumbFB() = default;
+mgg::DumbFB::~DumbFB()
+{
+    drmModeRmFB(drm_fd, fb_id);
+}
 
 mgg::DumbFB::DumbFB(
     mir::Fd drm_fd,
     bool supports_modifiers,
     std::unique_ptr<DumbBuffer> buffer)
-    : FBHandle(drm_fd, fb_id_for_buffer(drm_fd, supports_modifiers, *buffer)),
-      drm_fd{std::move(drm_fd)},
+    : drm_fd{std::move(drm_fd)},
+      fb_id{fb_id_for_buffer(this->drm_fd, supports_modifiers, *buffer)},
       buffer{std::move(buffer)}
 {
 }
@@ -242,6 +245,11 @@ mgg::DumbFB::DumbFB(
 auto mgg::DumbFB::map_writeable() -> std::unique_ptr<mir::renderer::software::Mapping<unsigned char>>
 {
     return buffer->map_writeable();
+}
+
+mgg::DumbFB::operator uint32_t() const
+{
+    return fb_id;
 }
 
 auto mgg::DumbFB::fb_id_for_buffer(mir::Fd const &drm_fd, bool supports_modifiers, DumbBuffer const& buf) -> uint32_t

@@ -55,7 +55,6 @@ public:
 
 protected:
     auto maybe_create_interface(
-        std::shared_ptr<graphics::GraphicBufferAllocator> const& /*device*/,
         graphics::RendererInterfaceBase::Tag const&) -> std::shared_ptr<graphics::RendererInterfaceBase> override
     {
         return nullptr;

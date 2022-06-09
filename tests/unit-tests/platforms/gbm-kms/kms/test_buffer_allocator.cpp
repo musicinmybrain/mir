@@ -23,6 +23,7 @@
 #include "mir/graphics/buffer_properties.h"
 #include "mir/graphics/display.h"
 #include "mir/options/program_option.h"
+#include "mir/renderer/gl/context.h"
 
 #include "mir/test/doubles/mock_drm.h"
 #include "mir/test/doubles/mock_gbm.h"
@@ -84,16 +85,9 @@ protected:
         ON_CALL(mock_gbm, gbm_bo_get_handle(_))
         .WillByDefault(Return(mock_gbm.fake_gbm.bo_handle));
 
-        platform = std::make_shared<mgg::Platform>(
-                mir::report::null_display_report(),
-                std::make_shared<mtd::StubConsoleServices>(),
-                *std::make_shared<mtd::NullEmergencyCleanup>(),
-                mgg::BypassOption::allowed,
-                std::make_unique<mgg::Quirks>(mo::ProgramOption{}));
-        display = platform->create_display(
-            std::make_shared<mtd::NullDisplayConfigurationPolicy>(),
-            std::make_shared<mtd::NullGLConfig>());
-        allocator.reset(new mgg::BufferAllocator(*display));
+        EGLDisplay dpy;
+        EGLContext ctx;
+        allocator = std::make_unique<mgg::BufferAllocator>(dpy, ctx);
     }
 
     // Defaults

@@ -34,6 +34,7 @@ class RendererFactory;
 namespace graphics
 {
 class GLRenderingProvider;
+class GLConfig;
 }
 ///  Compositing. Combining renderables into a display image.
 namespace compositor
@@ -44,6 +45,7 @@ class DefaultDisplayBufferCompositorFactory : public DisplayBufferCompositorFact
 public:
     DefaultDisplayBufferCompositorFactory(
         std::shared_ptr<graphics::GLRenderingProvider> render_platform,
+        std::shared_ptr<graphics::GLConfig> gl_config,
         std::shared_ptr<renderer::RendererFactory> const& renderer_factory,
         std::shared_ptr<CompositorReport> const& report);
 
@@ -52,6 +54,7 @@ public:
 private:
     // TODO: This should be a per-DisplayBuffer decision
     std::shared_ptr<graphics::GLRenderingProvider> const allocator;
+    std::shared_ptr<graphics::GLConfig> const gl_config;
     std::shared_ptr<renderer::RendererFactory> const renderer_factory;
     std::shared_ptr<CompositorReport> const report;
 };
