@@ -285,7 +285,7 @@ mrg::Renderer::Renderer(
     std::shared_ptr<graphics::GLRenderingProvider> gl_interface,
     std::unique_ptr<graphics::gl::OutputSurface> output)
     : output_surface{make_output_current(std::move(output))},
-      clear_color{0.5f, 0.5f, 0.5f, 1.0f},
+      clear_color{0.0f, 0.0f, 0.0f, 0.0f},
       program_factory{std::make_unique<ProgramFactory>()},
       display_transform(1),
       gl_interface{std::move(gl_interface)}
