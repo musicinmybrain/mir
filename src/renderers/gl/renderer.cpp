@@ -571,10 +571,10 @@ void mrg::Renderer::set_viewport(geometry::Rectangle const& rect)
                       0.0f});
 
     viewport = rect;
-    update_gl_viewport(rect.size);
+    update_gl_viewport();
 }
 
-void mrg::Renderer::update_gl_viewport(geom::Size const& output_size)
+void mrg::Renderer::update_gl_viewport()
 {
     /*
      * Letterboxing: Move the glViewport to add black bars in the case that
@@ -587,8 +587,10 @@ void mrg::Renderer::update_gl_viewport(geom::Size const& output_size)
     auto viewport_width = fabs(transformed_viewport[0]);
     auto viewport_height = fabs(transformed_viewport[1]);
 
+    auto const output_size = output_surface->size();
     auto const output_width = output_size.width.as_value();
     auto const output_height = output_size.height.as_value();
+
     if (viewport_width > 0.0f && viewport_height > 0.0f &&
         output_width > 0 && output_height > 0)
     {
@@ -629,7 +631,7 @@ void mrg::Renderer::set_output_transform(glm::mat2 const& t)
     if (new_display_transform != display_transform)
     {
         display_transform = new_display_transform;
-        update_gl_viewport(viewport.size);
+        update_gl_viewport();
     }
 }
 

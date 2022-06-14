@@ -19,6 +19,7 @@
 #ifndef MIR_RENDERER_GL_SURFACE_H_
 #define MIR_RENDERER_GL_SURFACE_H_
 
+#include "mir/geometry/size.h"
 #include <memory>
 
 namespace mir
@@ -40,6 +41,9 @@ public:
 
     // Naming: SwapBuffers? Commit? Claim current buffer?
     virtual auto commit() -> std::unique_ptr<graphics::Framebuffer> = 0;
+
+    /// Size, in pixels, of the underlying surface
+    virtual auto size() const -> mir::geometry::Size = 0;
 
     enum class Layout
     {

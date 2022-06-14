@@ -376,7 +376,7 @@ public:
         : allocator{std::move(allocator)},
           dpy{dpy},
           ctx{ctx},
-          size{std::move(size)}
+          size_{std::move(size)}
     {
         if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) != EGL_TRUE)
         {
@@ -384,7 +384,7 @@ public:
         }
         
         glBindRenderbuffer(GL_RENDERBUFFER, colour_buffer);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, size.width.as_int(), size.height.as_int());
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, size_.width.as_int(), size_.height.as_int());
 
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colour_buffer);
@@ -448,10 +448,15 @@ public:
              */
             glReadPixels(
                 0, 0,
-                size.width.as_int(), size.height.as_int(),
+                size_.width.as_int(), size_.height.as_int(),
                 GL_RGBA, GL_UNSIGNED_BYTE, mapping->data());
         }
         return fb;
+    }
+
+    auto size() const -> geom::Size override
+    {
+        return size_;
     }
 
     auto layout() const -> Layout override
@@ -463,7 +468,7 @@ private:
     std::unique_ptr<mg::DumbDisplayProvider::Allocator> const allocator;
     EGLDisplay const dpy;
     EGLContext const ctx;
-    geom::Size const size;
+    geom::Size const size_;
     RenderbufferHandle const colour_buffer;
     FramebufferHandle const fbo;
 };
@@ -479,8 +484,9 @@ public:
         mg::DRMFormat format,
         mir::geometry::Size size)
         : GBMOutputSurface(
+              size,
               dpy,
-              create_renderable(dpy, share_context, format, config, display, std::move(size)))
+              create_renderable(dpy, share_context, format, config, display, size))
     {
     }
 
@@ -507,6 +513,11 @@ public:
             BOOST_THROW_EXCEPTION(mg::egl_error("eglSwapBuffers failed"));
         }
         return surface->claim_framebuffer();
+    }
+
+    auto size() const -> geom::Size override
+    {
+        return size_;
     }
 
     auto layout() const -> Layout override
@@ -649,15 +660,18 @@ private:
     }
 
     GBMOutputSurface(
+        geom::Size size,
         EGLDisplay dpy,
         std::tuple<std::unique_ptr<mg::GBMDisplayProvider::GBMSurface>, EGLContext, EGLSurface> renderables)
-        : surface{std::move(std::get<0>(renderables))},
+        : size_{size},
+          surface{std::move(std::get<0>(renderables))},
           egl_surf{std::get<2>(renderables)},
           dpy{dpy},
           ctx{std::get<1>(renderables)}
     {
     }
 
+    geom::Size const size_;
     std::unique_ptr<mg::GBMDisplayProvider::GBMSurface> const surface;
     EGLSurface const egl_surf;
     EGLDisplay const dpy;

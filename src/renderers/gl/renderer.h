@@ -100,7 +100,7 @@ protected:
     virtual void draw(graphics::Renderable const& renderable) const;
 
 private:
-    void update_gl_viewport(geometry::Size const& output_size);
+    void update_gl_viewport();
 
     class ProgramFactory;
     std::unique_ptr<ProgramFactory> const program_factory;
