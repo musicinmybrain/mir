@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "src/server/compositor/default_display_buffer_compositor_factory.h"
 #include <miral/test_display_server.h>
 
 #include <miral/command_line_option.h>
@@ -103,19 +104,23 @@ void miral::TestDisplayServer::start_server()
                                 });
                         });
 
-/*
-                    server.override_the_display_buffer_compositor_factory([&server]
+
+                    server.override_the_display_buffer_compositor_factory(
+                        [&server]() -> std::shared_ptr<mir::compositor::DisplayBufferCompositorFactory>
                         {
                             auto first_rendering_platform = server.the_rendering_platforms().front();
                             auto gl_platform =
-                                first_rendering_platform->acquire_interface<mg::GLRenderingProvider>();
+                                mg::RenderingPlatform::acquire_interface<mg::GLRenderingProvider>(
+                                    std::move(first_rendering_platform));
                             if (gl_platform)
                             {
-                                return std::make_shared<mtf::HeadlessDisplayBufferCompositorFactory>(std::move(gl_platform));
+                                return std::make_shared<mtf::HeadlessDisplayBufferCompositorFactory>(
+                                    std::move(gl_platform),
+                                    server.the_gl_config());
                             }
                             BOOST_THROW_EXCEPTION((std::runtime_error{"Platform does not support GL interface"}));
                         });
-*/
+
 
                     server.override_the_logger([&]()
                         {
