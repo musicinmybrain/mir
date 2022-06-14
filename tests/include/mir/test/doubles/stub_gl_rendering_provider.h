@@ -28,8 +28,12 @@ namespace mir::test::doubles
 class StubGlRenderingPlatform : public graphics::GLRenderingProvider
 {
 public:
-    auto as_texture(std::shared_ptr<graphics::Buffer> /*buffer*/) -> std::shared_ptr<graphics::gl::Texture> override
+    auto as_texture(std::shared_ptr<graphics::Buffer> buffer) -> std::shared_ptr<graphics::gl::Texture> override
     {
+        if (auto existing_buf = std::dynamic_pointer_cast<graphics::gl::Texture>(std::move(buffer)))
+        {
+            return existing_buf;
+        }
         auto tex_buf = std::make_shared<testing::NiceMock<MockTextureBuffer>>(
             geometry::Size{800, 500},
             geometry::Stride{-1},
