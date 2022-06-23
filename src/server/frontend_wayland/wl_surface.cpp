@@ -93,6 +93,7 @@ mf::WlSurface::WlSurface(
         null_role{this},
         role{&null_role}
 {
+    children.push_back(nullptr);
     // wl_surface is specified to act in mailbox mode
     stream->allow_framedropping(true);
 }
@@ -128,10 +129,15 @@ auto mf::WlSurface::subsurface_at(geom::Point point) -> std::optional<WlSurface*
     }
     point = point - offset_;
     // loop backwards so the first subsurface we find that accepts the input is the topmost one
-    for (auto child_it = children.rbegin(); child_it != children.rend(); ++child_it)
+    for (auto const& child : children)
     {
-        if (auto result = (*child_it)->subsurface_at(point))
-            return result;
+        if (child)
+        {
+            if (auto const result = child->subsurface_at(point))
+            {
+                return result;
+            }
+        }
     }
     geom::Rectangle surface_rect = {geom::Point{}, buffer_size_.value_or(geom::Size{})};
     for (auto& rect : input_shape.value_or(std::vector<geom::Rectangle>{surface_rect}))
@@ -166,6 +172,11 @@ void mf::WlSurface::set_pending_offset(std::optional<geom::Displacement> const& 
 
 void mf::WlSurface::add_subsurface(WlSubsurface* child)
 {
+    if (!child)
+    {
+        // Unlikely, but resulting error would be hard to catch otherwise
+        fatal_error("subsurface null");
+    }
     if (std::find(children.begin(), children.end(), child) != children.end())
     {
         log_warning("Subsurface %p added to surface %p multiple times", static_cast<void*>(child), static_cast<void*>(this));
@@ -177,6 +188,11 @@ void mf::WlSurface::add_subsurface(WlSubsurface* child)
 
 void mf::WlSurface::remove_subsurface(WlSubsurface* child)
 {
+    if (!child)
+    {
+        // Unlikely, but resulting error would be hard to catch otherwise
+        fatal_error("subsurface null");
+    }
     children.erase(
         std::remove(
             children.begin(),
@@ -195,6 +211,14 @@ void mf::WlSurface::populate_surface_data(std::vector<shell::StreamSpecification
                                           geometry::Displacement const& parent_offset) const
 {
     geometry::Displacement offset = parent_offset + offset_;
+
+    // Loops through all children until the nullptr that represents the current (parent) surface
+    auto child_it = begin(children);
+    for (; *child_it; child_it++)
+    {
+        (*child_it)->populate_surface_data(buffer_streams, input_shape_accumulator, offset);
+    }
+    child_it++;
 
     buffer_streams.push_back(msh::StreamSpecification{stream, offset, {}});
     geom::Rectangle surface_rect = {geom::Point{} + offset, buffer_size_.value_or(geom::Size{})};
@@ -221,9 +245,10 @@ void mf::WlSurface::populate_surface_data(std::vector<shell::StreamSpecification
         input_shape_accumulator.push_back(surface_rect);
     }
 
-    for (WlSubsurface* subsurface : children)
+    // Loop through remaining subsurfaces
+    for (; child_it != end(children); child_it++)
     {
-        subsurface->populate_surface_data(buffer_streams, input_shape_accumulator, offset);
+        (*child_it)->populate_surface_data(buffer_streams, input_shape_accumulator, offset);
     }
 }
 
@@ -440,7 +465,10 @@ void mf::WlSurface::commit(WlSurfaceState const& state)
 
     for (WlSubsurface* child: children)
     {
-        child->parent_has_committed();
+        if (child)
+        {
+            child->parent_has_committed();
+        }
     }
 }
 
