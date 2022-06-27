@@ -89,8 +89,12 @@ private:
 
     std::vector<std::shared_ptr<KMSOutput>> outputs;
 
-    std::shared_ptr<FBHandle const> scheduled_fb{nullptr};
-    std::shared_ptr<FBHandle const> visible_fb{nullptr};
+    // Framebuffer handling
+    // KMS does not take a reference to submitted framebuffers; if you destroy a framebuffer while
+    // it's in use, KMS treat that as submitting a null framebuffer and turn off the display.
+    std::shared_ptr<FBHandle const> next_swap{nullptr};    //< Next frame to submit to the hardware
+    std::shared_ptr<FBHandle const> scheduled_fb{nullptr}; //< Frame currently submitted to the hardware, not yet on-screen
+    std::shared_ptr<FBHandle const> visible_fb{nullptr};   //< Frame currently onscreen
 
     geometry::Rectangle area;
     glm::mat2 transform;

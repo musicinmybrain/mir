@@ -170,7 +170,7 @@ bool mgg::DisplayBuffer::overlay(std::vector<DisplayElement> const& renderable_l
 
     if (auto fb = std::dynamic_pointer_cast<mgg::FBHandle>(renderable_list[0].buffer))
     {
-        scheduled_fb = std::move(fb);
+        next_swap = std::move(fb);
         return true;
     }
     return false;
@@ -209,6 +209,18 @@ void mgg::DisplayBuffer::post()
      * point before the next schedule_page_flip().
      */
     wait_for_page_flip();
+
+    if (!next_swap)
+    {
+        // Hey! No one has given us a next frame yet, so we don't have to change what's onscreen.
+        // Sweet! We can just bail.
+        return; 
+    }
+    /*
+     * Otherwise, pull the next frame into the pending slot
+     */
+    scheduled_fb = std::move(next_swap);
+    next_swap = nullptr;
 
     /*
      * Try to schedule a page flip as first preference to avoid tearing.
