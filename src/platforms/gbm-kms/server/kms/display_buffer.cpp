@@ -355,5 +355,9 @@ void mir::graphics::gbm::DisplayBuffer::set_next_image(std::unique_ptr<Framebuff
             std::move(content)
         }
     };
-    overlay(single_buffer);
+    if (!overlay(single_buffer))
+    {
+        // Oh, oh! We should be *guaranteed* to “overlay” a single Framebuffer; this is likely a programming error
+        BOOST_THROW_EXCEPTION((std::runtime_error{"Failed to post buffer to display"}));
+    }
 }
