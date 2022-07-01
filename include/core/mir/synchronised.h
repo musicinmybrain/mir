@@ -18,6 +18,8 @@
 #define MIR_SYNCHRONISED_H_
 
 #include <mutex>
+#include <type_traits>
+#include <optional>
 
 namespace mir
 {
@@ -30,7 +32,7 @@ namespace mir
  *
  * \tparam T  The type of data contained
  */
-template<typename T>
+template<typename T, typename Mutex = std::mutex>
 class Synchronised
 {
 public:
@@ -141,8 +143,19 @@ public:
     {
         return LockedImpl<T const>{std::unique_lock{mutex}, value};
     }
+
+    template<typename Rep, typename Period, typename = std::enable_if_t<std::is_invocable_v<decltype(&Mutex::try_lock_for), Mutex&, std::chrono::duration<Rep, Period> const&>>>
+    auto try_lock_for(std::chrono::duration<Rep, Period> const& timeout) const -> std::optional<Locked>
+    {
+        std::unique_lock<Mutex> lock{mutex, timeout};
+        if (lock.owns_lock())
+        {
+            return LockedImpl<T>{std::move(lock), value};
+        }
+        return {};        
+    }
 private:
-    std::mutex mutable mutex;
+    Mutex mutable mutex;
     T value;
 };
 
