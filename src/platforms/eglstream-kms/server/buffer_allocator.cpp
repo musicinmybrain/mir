@@ -19,6 +19,10 @@
 
 #include "buffer_allocator.h"
 #include "mir/anonymous_shm_file.h"
+#include "mir/graphics/display_buffer.h"
+#include "mir/graphics/egl_resources.h"
+#include "mir/graphics/gl_config.h"
+#include "mir/graphics/platform.h"
 #include "shm_buffer.h"
 #include "buffer_from_wl_shm.h"
 #include "mir/graphics/buffer_properties.h"
@@ -585,30 +589,18 @@ class CPUCopyOutputSurface : public mg::gl::OutputSurface
 {
 public:
     CPUCopyOutputSurface(
-        std::shared_ptr<mir::renderer::gl::Context> ctx,
+        std::unique_ptr<mir::renderer::gl::Context> ctx,
         std::unique_ptr<mg::DumbDisplayProvider::Allocator> allocator,
         geom::Size size)
         : allocator{std::move(allocator)},
           ctx{std::move(ctx)},
-          size{std::move(size)}
+          size_{std::move(size)}
     {
-        // glBindRenderbuffer(GL_RENDERBUFFER, colour_buffer);
-        // glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, size.width.as_int(), size.height.as_int());
-
-        glBindTexture(GL_TEXTURE_2D, tex);
-        
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexStorage2DEXT(GL_TEXTURE_2D, 1, GL_BGRA8_EXT, size.width.as_int(), size.height.as_int());
-
-        glBindTexture(GL_TEXTURE_2D, 0);
-        
+        glBindRenderbuffer(GL_RENDERBUFFER, colour_buffer);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, size_.width.as_int(), size_.height.as_int());
 
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-//        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colour_buffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colour_buffer);
 
         auto status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
         if (status != GL_FRAMEBUFFER_COMPLETE)
@@ -669,10 +661,15 @@ public:
              */
             glReadPixels(
                 0, 0,
-                size.width.as_int(), size.height.as_int(),
+                size_.width.as_int(), size_.height.as_int(),
                 GL_RGBA, GL_UNSIGNED_BYTE, mapping->data());
         }
         return fb;
+    }
+
+    auto size() const -> geom::Size override
+    {
+        return size_;
     }
 
     auto layout() const -> Layout override
@@ -682,16 +679,131 @@ public:
 
 private:
     std::unique_ptr<mg::DumbDisplayProvider::Allocator> const allocator;
-    std::shared_ptr<mir::renderer::gl::Context> const ctx;
-    geom::Size const size;
+    std::unique_ptr<mir::renderer::gl::Context> const ctx;
+    geom::Size const size_;
     RenderbufferHandle const colour_buffer;
-    TextureHandle const tex;
     FramebufferHandle const fbo;
 };
+
+auto make_stream_ctx(EGLDisplay dpy, EGLConfig cfg, EGLContext share_with) -> EGLContext
+{
+    eglBindAPI(EGL_OPENGL_ES_API);
+
+    EGLint const context_attr[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+
+    EGLContext context = eglCreateContext(dpy, cfg, share_with, context_attr);
+    if (context == EGL_NO_CONTEXT)
+    {
+        // One of the ways this will happen is if we try to create one of these
+        // on a different device to the display.
+        BOOST_THROW_EXCEPTION(mg::egl_error("Failed to create EGL context"));
+    }
+
+    return context;
 }
 
-mge::GLRenderingProvider::GLRenderingProvider(std::unique_ptr<mir::renderer::gl::Context> ctx)
-    : ctx{std::move(ctx)}
+auto make_output_surface(EGLDisplay dpy, EGLConfig cfg, EGLStreamKHR output_stream, geom::Size size)
+    -> EGLSurface
+{
+    EGLint const surface_attribs[] = {
+        EGL_WIDTH, size.width.as_int(),
+        EGL_HEIGHT, size.height.as_int(),
+        EGL_NONE,
+    };
+    auto surface = eglCreateStreamProducerSurfaceKHR(dpy, cfg, output_stream, surface_attribs);
+    if (surface == EGL_NO_SURFACE)
+    {
+        BOOST_THROW_EXCEPTION(mg::egl_error("Failed to create StreamProducerSurface"));
+    }
+    return surface;
+}
+
+class EGLStreamOutputSurface : public mg::gl::OutputSurface
+{
+public:
+    EGLStreamOutputSurface(
+        EGLDisplay dpy,
+        EGLConfig config,
+        EGLContext display_share_context,
+        EGLStreamKHR output_stream,
+        geom::Size size)
+        : dpy{dpy},
+          ctx{make_stream_ctx(dpy, config, display_share_context)},
+          surface{make_output_surface(dpy, config, output_stream, size)},
+          size_{std::move(size)}
+    {
+    }
+
+    void bind() override
+    {
+    }
+
+    void make_current() override
+    {
+        if (eglMakeCurrent(dpy, surface, surface, ctx) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("Failed to make context current"));
+        }
+    }
+
+    auto commit() -> std::unique_ptr<mg::Framebuffer> override
+    {
+        if (eglSwapBuffers(dpy, surface) != EGL_TRUE)
+        {
+            BOOST_THROW_EXCEPTION(mg::egl_error("eglSwapBuffers failed"));
+        }
+        return {};
+    }
+
+    auto size() const -> geom::Size override
+    {
+        return size_;
+    }
+
+    auto layout() const -> Layout override
+    {
+        return Layout::GL;
+    }
+
+private:
+    EGLDisplay const dpy;
+    EGLContext const ctx;
+    EGLSurface const surface;
+    geom::Size const size_;
+};
+
+auto pick_stream_surface_config(EGLDisplay dpy, mg::GLConfig const& gl_config) -> EGLConfig
+{
+    EGLint const config_attr[] = {
+        EGL_SURFACE_TYPE, EGL_STREAM_BIT_KHR,
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, gl_config.depth_buffer_bits(),
+        EGL_STENCIL_SIZE, gl_config.stencil_buffer_bits(),
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_NONE
+    };
+
+    EGLConfig egl_config;
+    EGLint num_egl_configs{0};
+
+    if (eglChooseConfig(dpy, config_attr, &egl_config, 1, &num_egl_configs) == EGL_FALSE ||
+        num_egl_configs != 1)
+    {
+        BOOST_THROW_EXCEPTION(mg::egl_error("Failed to choose ARGB EGL config"));
+    }
+    return egl_config;
+}
+}
+
+mge::GLRenderingProvider::GLRenderingProvider(EGLDisplay dpy, std::unique_ptr<mir::renderer::gl::Context> ctx)
+    : dpy{dpy},
+      ctx{std::move(ctx)}
 {
 }
 
@@ -703,8 +815,26 @@ auto mir::graphics::eglstream::GLRenderingProvider::as_texture(std::shared_ptr<B
 
 auto mge::GLRenderingProvider::surface_for_output(
     mg::DisplayBuffer& db,
-    mg::GLConfig const&) -> std::unique_ptr<gl::OutputSurface>
+    mg::GLConfig const& gl_config) -> std::unique_ptr<gl::OutputSurface>
 {
+    if (auto stream_platform = DisplayPlatform::acquire_interface<EGLStreamDisplayProvider>(db.owner()))
+    {
+        try
+        {
+            return std::make_unique<EGLStreamOutputSurface>(
+                dpy,
+                pick_stream_surface_config(dpy, gl_config),
+                static_cast<EGLContext>(*ctx),
+                stream_platform->claim_stream_for_output(db),
+                db.view_area().size);
+        }
+        catch (std::exception const& err)
+        {
+            mir::log_info(
+                "Failed to create EGLStream-backed output surface: %s",
+                err.what());
+        }
+    }
     auto dumb_display = DisplayPlatform::acquire_interface<DumbDisplayProvider>(db.owner());
 
     auto fb_context = ctx->make_share_context();

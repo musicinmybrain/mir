@@ -325,6 +325,20 @@ public:
         -> std::unique_ptr<Framebuffer> = 0;
 };
 
+#ifndef EGLStreamKHR
+typedef void* EGLStreamKHR;
+#endif
+
+class EGLStreamDisplayProvider : public DisplayInterfaceBase
+{
+public:
+    class Tag : public DisplayInterfaceBase::Tag
+    {
+    };
+
+    virtual auto claim_stream_for_output(DisplayBuffer& db) -> EGLStreamKHR = 0;
+};
+
 class DisplayPlatform : public std::enable_shared_from_this<DisplayPlatform>
 {
 public:

@@ -26,8 +26,6 @@
 
 #include <boost/throw_exception.hpp>
 #include <boost/exception/errinfo_file_name.hpp>
-#include <sys/sysmacros.h>
-#include <one_shot_device_observer.h>
 
 namespace mg = mir::graphics;
 namespace mge = mir::graphics::eglstream;
@@ -169,7 +167,8 @@ private:
 }
 
 mge::RenderingPlatform::RenderingPlatform(EGLDisplay dpy)
-    : ctx{std::make_unique<BasicEGLContext>(dpy)}
+    : dpy{dpy},
+      ctx{std::make_unique<BasicEGLContext>(dpy)}
 {
     setenv(mir_xwayland_option, "-eglstream", 1);
 }
@@ -186,12 +185,11 @@ mir::UniqueModulePtr<mg::GraphicBufferAllocator> mge::RenderingPlatform::create_
 }
 
 auto mge::RenderingPlatform::maybe_create_interface(
-    std::shared_ptr<GraphicBufferAllocator> const& /*allocator*/,
     RendererInterfaceBase::Tag const& type_tag) -> std::shared_ptr<RendererInterfaceBase>
 {
     if (dynamic_cast<graphics::GLRenderingProvider::Tag const*>(&type_tag))
     {
-        return std::make_shared<mge::GLRenderingProvider>(ctx->make_share_context());
+        return std::make_shared<mge::GLRenderingProvider>(dpy, ctx->make_share_context());
     }
     return nullptr;
 }

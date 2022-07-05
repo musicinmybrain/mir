@@ -51,29 +51,10 @@ public:
 
 protected:
     auto maybe_create_interface(
-        std::shared_ptr<GraphicBufferAllocator> const& allocator,
         RendererInterfaceBase::Tag const& type_tag) -> std::shared_ptr<RendererInterfaceBase> override;
 private:
+    EGLDisplay const dpy;
     std::unique_ptr<renderer::gl::Context> const ctx;
-};
-
-class DisplayPlatform : public graphics::DisplayPlatform
-{
-public:
-    DisplayPlatform(
-        ConsoleServices& console,
-        EGLDeviceEXT device,
-        std::shared_ptr<DisplayReport> display_report);
-
-    UniqueModulePtr<Display> create_display(
-        std::shared_ptr<DisplayConfigurationPolicy> const& /*initial_conf_policy*/,
-        std::shared_ptr<GLConfig> const& /*gl_config*/) override;
-
-private:
-    std::shared_ptr<DisplayReport> const display_report;
-    EGLDisplay display;
-    mir::Fd drm_node;
-    std::unique_ptr<mir::Device> drm_device;
 };
 }
 }

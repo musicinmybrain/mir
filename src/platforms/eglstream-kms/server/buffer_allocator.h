@@ -95,7 +95,7 @@ private:
 class GLRenderingProvider : public graphics::GLRenderingProvider
 {
 public:
-    GLRenderingProvider(std::unique_ptr<renderer::gl::Context> ctx);
+    GLRenderingProvider(EGLDisplay dpy, std::unique_ptr<renderer::gl::Context> ctx);
 
     auto as_texture(std::shared_ptr<Buffer> buffer) -> std::shared_ptr<gl::Texture> override;
 
@@ -103,6 +103,7 @@ public:
 
     auto surface_for_output(DisplayBuffer& db, GLConfig const& gl_config) -> std::unique_ptr<gl::OutputSurface> override;
 private:
+    EGLDisplay dpy;
     std::unique_ptr<renderer::gl::Context> const ctx;
 };
 
