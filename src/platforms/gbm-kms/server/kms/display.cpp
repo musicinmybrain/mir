@@ -362,35 +362,6 @@ mg::Frame mgg::Display::last_frame_on(unsigned output_id) const
     return output->last_frame();
 }
 
-namespace
-{
-/*
- * Add output to the grouping, maintaining the invariant that each vector of outputs
- * is a single GPU memory domain.
- */
-void add_to_drm_device_group(
-    std::vector<std::vector<std::shared_ptr<mgg::KMSOutput>>>& grouping,
-    std::shared_ptr<mgg::KMSOutput>&& output)
-{
-    for (auto &group : grouping)
-    {
-        /*
-         * We could be smarter about this, but being on the same DRM device is guaranteed
-         * to be in the same GPU memory domain :).
-         */
-        if (group.front()->drm_fd() == output->drm_fd())
-        {
-            group.push_back(std::move(output));
-            break;
-        }
-    }
-    if (output)
-    {
-        grouping.push_back(std::vector<std::shared_ptr<mgg::KMSOutput>>{std::move(output)});
-    }
-}
-}
-
 void mgg::Display::configure_locked(
     mgg::RealKMSDisplayConfiguration const& kms_conf,
     std::lock_guard<std::mutex> const&)
@@ -433,8 +404,7 @@ void mgg::Display::configure_locked(
         [&](OverlappingOutputGroup const& group)
         {
             auto bounding_rect = group.bounding_rectangle();
-            // Each vector<KMSOutput> is a single GPU memory domain
-            std::vector<std::vector<std::shared_ptr<KMSOutput>>> kms_output_groups;
+            std::vector<std::shared_ptr<KMSOutput>> kms_outputs;
             glm::mat2 transformation;
             geom::Size current_mode_resolution;
 
@@ -450,7 +420,7 @@ void mgg::Display::configure_locked(
                     {
                         kms_output->set_power_mode(conf_output.power_mode);
                         kms_output->set_gamma(conf_output.gamma);
-                        add_to_drm_device_group(kms_output_groups, std::move(kms_output));
+                        kms_outputs.push_back(std::move(kms_output));
                     }
 
                     /*
@@ -469,37 +439,16 @@ void mgg::Display::configure_locked(
             }
             else
             {
-                for (auto const& group : kms_output_groups)
-                {
-//                    // TODO: Pull this out of the configuration
-//                    // TODO: Actually query available formats!
-//                    mg::DRMFormat format{GBM_FORMAT_XRGB8888};
-//                    /*
-//                     * In a hybrid setup a scanout surface needs to be allocated differently if it
-//                     * needs to be able to be shared across GPUs. This likely reduces performance.
-//                     *
-//                     * As a first cut, assume every scanout buffer in a hybrid setup might need
-//                     * to be shared.
-//                     */
-//                    auto [surface, egl] = make_surface_with_egl_context(
-//                        current_mode_resolution,
-//                        format,
-//                        *gbm,
-//                        *gl_config,
-//                        shared_egl.context(),
-//                        drm.size() != 1);
+                auto db = std::make_unique<DisplayBuffer>(
+                    owner,
+                    drm_fd,
+                    bypass_option,
+                    listener,
+                    kms_outputs,
+                    bounding_rect,
+                    transformation);
 
-                    auto db = std::make_unique<DisplayBuffer>(
-                        owner,
-                        mir::Fd{mir::IntOwnedFd{group.front()->drm_fd()}},
-                        bypass_option,
-                        listener,
-                        group,
-                        bounding_rect,
-                        transformation);
-
-                    display_buffers_new.push_back(std::move(db));
-                }
+                display_buffers_new.push_back(std::move(db));
             }
         });
 
