@@ -18,6 +18,7 @@
 #define MIR_TEST_DOUBLES_MOCK_DISPLAY_H_
 
 #include "mir/graphics/display.h"
+#include "mir/graphics/display_configuration.h"
 #include "mir/renderer/gl/context.h"
 #include "mir/main_loop.h"
 #include <gmock/gmock.h>
@@ -43,7 +44,6 @@ public:
     MOCK_METHOD(void, pause, (), (override));
     MOCK_METHOD(void, resume, (), (override));
     MOCK_METHOD(std::shared_ptr<graphics::Cursor>, create_hardware_cursor, (), (override));
-    MOCK_METHOD(std::unique_ptr<graphics::VirtualOutput>, create_virtual_output, (int, int), (override));
     MOCK_METHOD(graphics::Frame, last_frame_on, (unsigned), (const override));
 };
 
