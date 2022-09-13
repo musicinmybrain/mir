@@ -104,10 +104,20 @@ mgc::MemoryBackedShmBuffer::MemoryBackedShmBuffer(
     geom::Size const& size,
     MirPixelFormat const& pixel_format,
     std::shared_ptr<EGLContextExecutor> egl_delegate)
-    : ShmBuffer(size, pixel_format, std::move(egl_delegate)),
+    : ShmBuffer(size, pixel_format, egl_delegate),
       stride_{MIR_BYTES_PER_PIXEL(pixel_format) * size.width.as_uint32_t()},
       pixels{new unsigned char[stride_.as_int() * size.height.as_int()]}
 {
+    egl_delegate->spawn([this]()
+        {
+            ShmBuffer::bind();
+            {
+                std::lock_guard lock{uploaded_mutex};
+                upload_to_texture(pixels.get(), stride_);
+                uploaded = true;
+            }
+            uploaded_cv.notify_one();
+        });
 }
 
 mgc::ShmBuffer::~ShmBuffer() noexcept
@@ -197,18 +207,14 @@ void mgc::ShmBuffer::bind()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFinish();
     }
 }
 
 void mgc::MemoryBackedShmBuffer::bind()
 {
+    wait_for_upload();
     mgc::ShmBuffer::bind();
-    std::lock_guard lock{uploaded_mutex};
-    if (!uploaded)
-    {
-        upload_to_texture(pixels.get(), stride_);
-        uploaded = true;
-    }
 }
 
 template<typename T>
@@ -262,6 +268,11 @@ auto mgc::MemoryBackedShmBuffer::map_readable() -> std::unique_ptr<mrs::Mapping<
 auto mgc::MemoryBackedShmBuffer::map_rw() -> std::unique_ptr<mrs::Mapping<unsigned char>>
 {
     return std::make_unique<Mapping<unsigned char>>(this);
+}
+
+mir::graphics::common::MemoryBackedShmBuffer::~MemoryBackedShmBuffer()
+{
+    wait_for_upload();
 }
 
 mg::gl::Program const& mgc::ShmBuffer::shader(mg::gl::ProgramFactory& cache) const

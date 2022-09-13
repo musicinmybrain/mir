@@ -27,6 +27,7 @@
 
 #include <GLES2/gl2.h>
 
+#include <condition_variable>
 #include <mutex>
 
 namespace mir
@@ -82,6 +83,7 @@ public:
         geometry::Size const& size,
         MirPixelFormat const& pixel_format,
         std::shared_ptr<EGLContextExecutor> egl_delegate);
+    ~MemoryBackedShmBuffer();
 
     auto map_writeable() -> std::unique_ptr<renderer::software::Mapping<unsigned char>> override;
     auto map_readable() -> std::unique_ptr<renderer::software::Mapping<unsigned char const>> override;
@@ -101,8 +103,14 @@ private:
 
     geometry::Stride const stride_;
     std::unique_ptr<unsigned char[]> const pixels;
-    std::mutex uploaded_mutex;
+    std::mutex mutable uploaded_mutex;
+    std::condition_variable mutable uploaded_cv;
     bool uploaded{false};
+    void wait_for_upload() const
+    {
+        std::unique_lock lock{uploaded_mutex};
+        uploaded_cv.wait(lock, [&] { return uploaded; });
+    }
 };
 
 }
