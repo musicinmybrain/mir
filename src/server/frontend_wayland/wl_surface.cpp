@@ -514,6 +514,13 @@ mf::DragWlSurfaceRole::~DragWlSurfaceRole()
     if (surface)
     {
         surface.value().clear_role();
+
+        if (auto const scene_surface = weak_scene_surface.lock())
+        {
+            auto const& session = surface.value().session;
+            session->destroy_surface(scene_surface);
+            weak_scene_surface.reset();
+        }
     }
 }
 
@@ -569,5 +576,3 @@ void mf::DragWlSurfaceRole::commit(WlSurfaceState const& state)
     // TODO - handle
     surface.value().commit(state);
 }
-
-
