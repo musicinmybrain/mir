@@ -1,5 +1,5 @@
 /*
- * Copyright © 2018-2021 Canonical Ltd.
+ * Copyright © 2018-2022 Canonical Ltd.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 3,
@@ -37,6 +37,7 @@
 #include "mir/scene/surface.h"
 #include "mir/shell/surface_specification.h"
 #include "mir/log.h"
+#include "mir/geometry/forward.h"
 
 #include <chrono>
 #include <boost/throw_exception.hpp>
@@ -499,3 +500,74 @@ auto mf::NullWlSurfaceRole::scene_surface() const -> std::optional<std::shared_p
 void mf::NullWlSurfaceRole::refresh_surface_data_now() {}
 void mf::NullWlSurfaceRole::commit(WlSurfaceState const& state) { surface->commit(state); }
 void mf::NullWlSurfaceRole::surface_destroyed() {}
+
+mf::DragWlSurfaceRole::DragWlSurfaceRole(WlSurface* surface)
+    : NullWlSurfaceRole(surface),
+      surface{surface}
+{
+    surface->set_role(this);
+    create_scene_surface();
+}
+
+mf::DragWlSurfaceRole::~DragWlSurfaceRole()
+{
+    if (surface)
+    {
+        surface.value().clear_role();
+    }
+}
+
+auto mf::DragWlSurfaceRole::scene_surface() const -> std::optional<std::shared_ptr<scene::Surface>>
+{
+    auto shared = weak_scene_surface.lock();
+    if (shared)
+    {
+        return shared;
+    }
+    else
+    {
+        return std::nullopt;
+    }
+}
+
+void mf::DragWlSurfaceRole::create_scene_surface()
+{
+    if (weak_scene_surface.lock() || !surface)
+    {
+        return;
+    }
+
+    // TODO - check surface has value
+
+    auto spec = shell::SurfaceSpecification();
+    spec.width = surface.value().buffer_size()->width;
+    spec.height = surface.value().buffer_size()->height;
+    spec.streams = std::vector<shell::StreamSpecification>{};
+    spec.input_shape = std::vector<geom::Rectangle>{};
+
+    // TODO - handle
+    surface.value().populate_surface_data(spec.streams.value(), spec.input_shape.value(), {});
+
+    auto const& session = surface.value().session;
+
+    auto const scene_surface = session->create_surface(session, wayland::Weak<mf::WlSurface>(surface), spec, nullptr, nullptr);
+    weak_scene_surface = scene_surface;
+}
+
+void mf::DragWlSurfaceRole::commit(WlSurfaceState const& state)
+{
+    if (!surface)
+    {
+        return;
+    }
+
+    if (weak_scene_surface.expired())
+    {
+        create_scene_surface();
+    }
+
+    // TODO - handle
+    surface.value().commit(state);
+}
+
+

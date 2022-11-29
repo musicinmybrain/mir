@@ -1,5 +1,5 @@
 /*
- * Copyright © 2018-2021 Canonical Ltd.
+ * Copyright © 2018-2022 Canonical Ltd.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 3,
@@ -99,6 +99,20 @@ public:
 
 private:
     WlSurface* const surface;
+};
+
+class DragWlSurfaceRole : public NullWlSurfaceRole
+{
+public:
+    DragWlSurfaceRole(WlSurface* surface);
+    ~DragWlSurfaceRole();
+    auto scene_surface() const -> std::optional<std::shared_ptr<scene::Surface>> override;
+    void commit(WlSurfaceState const& state) override;
+    void create_scene_surface();
+
+private:
+    wayland::Weak<WlSurface> const surface;
+    std::weak_ptr<scene::Surface> weak_scene_surface;
 };
 
 class WlSurface : public wayland::Surface
