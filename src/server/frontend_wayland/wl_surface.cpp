@@ -515,21 +515,20 @@ mf::DragWlSurfaceRole::~DragWlSurfaceRole()
     {
         surface.value().clear_role();
 
-        if (auto const scene_surface = weak_scene_surface.lock())
+        if (shared_scene_surface)
         {
             auto const& session = surface.value().session;
-            session->destroy_surface(scene_surface);
-            weak_scene_surface.reset();
+            session->destroy_surface(shared_scene_surface);
+            shared_scene_surface.reset();
         }
     }
 }
 
 auto mf::DragWlSurfaceRole::scene_surface() const -> std::optional<std::shared_ptr<scene::Surface>>
 {
-    auto shared = weak_scene_surface.lock();
-    if (shared)
+    if (shared_scene_surface)
     {
-        return shared;
+        return shared_scene_surface;
     }
     else
     {
@@ -539,7 +538,7 @@ auto mf::DragWlSurfaceRole::scene_surface() const -> std::optional<std::shared_p
 
 void mf::DragWlSurfaceRole::create_scene_surface()
 {
-    if (weak_scene_surface.lock() || !surface)
+    if (shared_scene_surface || !surface)
     {
         return;
     }
@@ -557,8 +556,7 @@ void mf::DragWlSurfaceRole::create_scene_surface()
 
     auto const& session = surface.value().session;
 
-    auto const scene_surface = session->create_surface(session, wayland::Weak<mf::WlSurface>(surface), spec, nullptr, nullptr);
-    weak_scene_surface = scene_surface;
+    shared_scene_surface = session->create_surface(session, wayland::Weak<mf::WlSurface>(surface), spec, nullptr, nullptr);
 }
 
 void mf::DragWlSurfaceRole::commit(WlSurfaceState const& state)
@@ -568,7 +566,7 @@ void mf::DragWlSurfaceRole::commit(WlSurfaceState const& state)
         return;
     }
 
-    if (weak_scene_surface.expired())
+    if (!shared_scene_surface)
     {
         create_scene_surface();
     }
