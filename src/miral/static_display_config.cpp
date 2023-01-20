@@ -15,7 +15,6 @@
  */
 
 #include <optional>
-#include <mutex>
 #include <boost/throw_exception.hpp>
 #include <sys/inotify.h>
 #include <unistd.h>
